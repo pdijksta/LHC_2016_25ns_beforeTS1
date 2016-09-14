@@ -1,0 +1,10 @@
+*~
+*.pyc
+*.png
+*.csv
+*.pkl
+*_data_csvs*
+LHCMeasurementTools
+PyLHCLumiModel
+bckup_LHCMeasurementTools
+plots/
