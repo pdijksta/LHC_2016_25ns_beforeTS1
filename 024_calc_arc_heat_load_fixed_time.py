@@ -5,7 +5,7 @@
 # Comparing these to the heatloads from PyEcloud simulations will then allow for 
 #   an estimation of the SEY parameter.
 
-# Written by Philipp Dijkstal, 15.09.2016
+# Written by Philipp Dijkstal, philipp.dijkstal@cern.ch
 
 import sys
 import cPickle  # it is recommended to use cPickle over pickle
@@ -75,6 +75,7 @@ dict_hl_groups['Arcs'] = HL.variable_lists_heatloads['AVG_ARC']
 group_names = dict_hl_groups.keys()
 arc_keys_list = dict_hl_groups['Arcs']
 model_key = 'LHC.QBS_CALCULATED_ARC.TOTAL'
+model_key_nice = 'Imp+SR'
 
 with open('fills_and_bmodes.pkl', 'rb') as fid:
     dict_fill_bmodes = cPickle.load(fid)
@@ -111,7 +112,7 @@ print("The heatload from impedance / SR is\n%.2f\t%.2f\n" % (model_heatload, mod
 
 
 temp_dict = {}
-temp_dict[model_key] = [model_heatload, model_heatload_sigma]
+temp_dict[model_key_nice] = [model_heatload, model_heatload_sigma]
 
 for key in arc_keys_list:
     arc_time_heatload = np.array([(heatloads.timber_variables[key].t_stamps-t_ref)/3600., heatloads.timber_variables[key].values]).T
