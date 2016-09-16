@@ -129,7 +129,7 @@ fig.set_size_inches(15., 8.)
 plt.suptitle(' Fill. %d started on %s\nLHC Arcs' % (filln, tref_string))
 plt.subplots_adjust(right=0.7, wspace=0.30)
 
-sptotint = plt.subplot(2, 1, )
+sptotint = plt.subplot(2, 1, 1)
 sphlcell = plt.subplot(2, 1, 2, sharex=sptotint)
 spenergy = sptotint.twinx()
 
