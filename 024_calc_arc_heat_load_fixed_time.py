@@ -8,7 +8,7 @@
 # Written by Philipp Dijkstal, 15.09.2016
 
 import sys
-import pickle
+import cPickle  # it is recommended to use cPickle over pickle
 import time
 import matplotlib.pyplot as plt
 import numpy as np
@@ -77,7 +77,7 @@ arc_keys_list = dict_hl_groups['Arcs']
 model_key = 'LHC.QBS_CALCULATED_ARC.TOTAL'
 
 with open('fills_and_bmodes.pkl', 'rb') as fid:
-    dict_fill_bmodes = pickle.load(fid)
+    dict_fill_bmodes = cPickle.load(fid)
 
 fill_dict = {}
 fill_dict.update(tm.parse_timber_file('fill_basic_data_csvs/basic_data_fill_%d.csv' % filln, verbose=False))
@@ -128,7 +128,7 @@ for key in arc_keys_list:
 
 if store_pickle:
     with open(pickle_name,'r') as hl_dict_file:
-        heatload_dict = pickle.load(hl_dict_file)
+        heatload_dict = cPickle.load(hl_dict_file)
     
     filln_str = str(filln)
     t_o_i_str = str(time_of_interest)
@@ -138,7 +138,7 @@ if store_pickle:
     if t_o_i_str not in heatload_dict[filln_str].keys():
         heatload_dict[filln_str][t_o_i_str] = temp_dict
         with open(pickle_name, 'w') as hl_dict_file:
-            pickle.dump(heatload_dict,hl_dict_file)
+            cPickle.dump(heatload_dict,hl_dict_file)
     else:
 	print('This entry already exists in the pickle, not storing!!\n')
     
