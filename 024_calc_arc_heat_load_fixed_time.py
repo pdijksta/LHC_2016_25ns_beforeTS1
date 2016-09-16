@@ -32,6 +32,7 @@ colstr[2] = 'r'
 beams_list = [1, 2]
 myfontsz = 16
 ms.mystyle_arial(fontsz=myfontsz, dist_tick_lab=8)
+pickle_name = 'heatload_arcs.pkl'
 
 
 # PARSE ARGS
@@ -47,7 +48,9 @@ parser.add_argument('time', metavar='TIME', type=float, help='Time after the spe
 
 # Averaging period (optional)
 parser.add_argument('-a', metavar='AVG_PERIOD', type=float, default=default_avg_period, 
-                    help='The time in hours this program uses to find an average around the specified TIME.\nDefault: %.2f' % default_avg_period)
+                    help='The time in hours this program uses to find an average around the specified TIME.\nDefault: +/- %.2f' % default_avg_period)
+# Save to Pickle (optional)
+parser.add_argument('-p', help='Save heatloads to pickle', action='store_true')
 
 # Plot (optional)
 parser.add_argument('-n', help='No plot will be shown', action='store_false')
@@ -56,7 +59,9 @@ args = parser.parse_args()
 avg_period = args.a
 filln = args.fill
 time_of_interest = args.time
+store_pickle = args.p
 show_plot = args.n
+dict_main_key = str(filln) + str(time_of_interest)
 
 if filln < first_correct_filln:
     print("Fill number too small. Look at the help for this function.")
@@ -100,19 +105,43 @@ model_time_heatload = np.array([(heatloads.timber_variables[model_key].t_stamps-
 model_time_heatload_cut = cut_arrays(model_time_heatload)
 
 model_heatload = np.mean(model_time_heatload_cut)
-model_headload_sigma = np.std(model_time_heatload_cut)
+model_heatload_sigma = np.std(model_time_heatload_cut)
 
-print("The heatload from impedance / SR is\n%.2f\t%.2f\n" % (model_heatload, model_headload_sigma))
+print("The heatload from impedance / SR is\n%.2f\t%.2f\n" % (model_heatload, model_heatload_sigma))
+
+
+temp_dict = {}
+temp_dict[model_key] = [model_heatload, model_heatload_sigma]
 
 for key in arc_keys_list:
     arc_time_heatload = np.array([(heatloads.timber_variables[key].t_stamps-t_ref)/3600., heatloads.timber_variables[key].values]).T
     arc_time_heatload_cut = cut_arrays(arc_time_heatload)
 
     avg_heatload = np.mean(arc_time_heatload_cut) - model_heatload
-    avg_heatload_sigma = np.sqrt(np.var(arc_time_heatload_cut)+ model_headload_sigma**2)
+    avg_heatload_sigma = np.sqrt(np.var(arc_time_heatload_cut)+ model_heatload_sigma**2)
     label = key[0:3]
+    temp_dict[label] = [avg_heatload, avg_heatload_sigma]
     print("The heatload on arc %s attributed to e-cloud is\n%.2f\t%.2f" % (label, avg_heatload, avg_heatload_sigma))
 
+
+# SAVE PICKLE
+
+if store_pickle:
+    with open(pickle_name,'r') as hl_dict_file:
+        heatload_dict = pickle.load(hl_dict_file)
+    
+    filln_str = str(filln)
+    t_o_i_str = str(time_of_interest)
+    
+    if filln_str not in heatload_dict.keys():
+        heatload_dict[filln_str] = {}
+    if t_o_i_str not in heatload_dict[filln_str].keys():
+        heatload_dict[filln_str][t_o_i_str] = temp_dict
+        with open(pickle_name, 'w') as hl_dict_file:
+            pickle.dump(heatload_dict,hl_dict_file)
+    else:
+	print('This entry already exists in the pickle, not storing!!\n')
+    
 
 # PLOTS
 
