@@ -8,6 +8,7 @@
 # Written by Philipp Dijkstal, philipp.dijkstal@cern.ch
 
 import sys
+import os
 import cPickle  # it is recommended to use cPickle over pickle
 import time
 import matplotlib.pyplot as plt
@@ -44,7 +45,7 @@ parser = arg.ArgumentParser(description='Calculate the heat loads on all arcs at
 parser.add_argument('fill', metavar='FILL', type=int, help='LHC fill number, must be at least %i.' % first_correct_filln)
 
 # Point in Time
-parser.add_argument('time', metavar='TIME', type=float, help='Time after the specified FILL number has been set.\n Obtain it with the 016 script.')
+parser.add_argument('time', metavar='TIME', type=str, help='Time after the specified FILL number has been set.\n Obtain it with the 016 script.')
 
 # Averaging period (optional)
 parser.add_argument('-a', metavar='AVG_PERIOD', type=float, default=default_avg_period, 
@@ -58,7 +59,8 @@ parser.add_argument('-n', help='No plot will be shown', action='store_false')
 args = parser.parse_args()
 avg_period = args.a
 filln = args.fill
-time_of_interest = args.time
+time_of_interest_str = args.time
+time_of_interest = float(time_of_interest_str)
 store_pickle = args.p
 show_plot = args.n
 dict_main_key = str(filln) + str(time_of_interest)
@@ -128,8 +130,11 @@ for key in arc_keys_list:
 # SAVE PICKLE
 
 if store_pickle:
-    with open(pickle_name,'r') as hl_dict_file:
-        heatload_dict = cPickle.load(hl_dict_file)
+    if not os.path.isfile(pickle_name):
+        heatload_dict = {} 
+    else :
+        with open(pickle_name,'r') as hl_dict_file:
+            heatload_dict = cPickle.load(hl_dict_file)
     
     filln_str = str(filln)
     t_o_i_str = str(time_of_interest)
