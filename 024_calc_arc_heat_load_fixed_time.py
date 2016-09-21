@@ -4,6 +4,7 @@
 # The heat load on the arc is calculated using LHC data for a given fill and time.
 # Comparing these to the heatloads from PyEcloud simulations will then allow for 
 #   an estimation of the SEY parameter.
+# It has been extended to also list the heat load on the Q6 quadrupoles.
 
 # Written by Philipp Dijkstal, philipp.dijkstal@cern.ch
 
@@ -51,7 +52,10 @@ parser.add_argument('time', metavar='TIME', type=str, help='Time after the speci
 parser.add_argument('-a', metavar='AVG_PERIOD', type=float, default=default_avg_period, 
                     help='The time in hours this program uses to find an average around the specified TIME.\nDefault: +/- %.2f' % default_avg_period)
 # Save to Pickle (optional)
-parser.add_argument('-p', help='Save heatloads to pickle', action='store_true')
+parser.add_argument('-p', help='Save heatloads to pickle if entry does not exist', action='store_true')
+
+# Force overwrite of pickle
+parser.add_argument('-f', help='Force overwrite of pickle entry', action='store_true')
 
 # Plot (optional)
 parser.add_argument('-n', help='No plot will be shown', action='store_false')
@@ -61,12 +65,14 @@ avg_period = args.a
 filln = args.fill
 time_of_interest_str = args.time
 time_of_interest = float(time_of_interest_str)
-store_pickle = args.p
+store_pickle = args.p or args.f
+overwrite_pickle = args.f
 show_plot = args.n
 dict_main_key = str(filln) + str(time_of_interest)
 
+# A minimum fill number is inferred from the 016 script
 if filln < first_correct_filln:
-    print("Fill number too small. Look at the help for this function.")
+    print("Fill number too small. Look at the help for this script.")
     sys.exit()
 
 
@@ -74,8 +80,11 @@ if filln < first_correct_filln:
 
 dict_hl_groups = {}
 dict_hl_groups['Arcs'] = HL.variable_lists_heatloads['AVG_ARC']
+dict_hl_groups['Q5s_IR15'] = HL.variable_lists_heatloads['Q5s_IR1']+HL.variable_lists_heatloads['Q5s_IR5']
 group_names = dict_hl_groups.keys()
 arc_keys_list = dict_hl_groups['Arcs']
+quad_keys_list = dict_hl_groups['Q5s_IR15']
+
 model_key = 'LHC.QBS_CALCULATED_ARC.TOTAL'
 model_key_nice = 'Imp+SR'
 
@@ -96,6 +105,7 @@ t_ref = dict_fill_bmodes[filln]['t_startfill']
 tref_string = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime(t_ref))
 
 heatloads = SetOfHomogeneousNumericVariables(variable_list=arc_keys_list+[model_key], timber_variables=fill_dict)
+heatloads_quad  = SetOfHomogeneousNumericVariables(variable_list=quad_keys_list, timber_variables=fill_dict)
 
 
 # COMPUTE AVERAGES
@@ -126,6 +136,16 @@ for key in arc_keys_list:
     temp_dict[label] = [avg_heatload, avg_heatload_sigma]
     print("The heatload on arc %s attributed to e-cloud is\n%.2f\t%.2f" % (label, avg_heatload, avg_heatload_sigma))
 
+for quad in quad_keys_list:
+    quad_time_heatload = np.array([(heatloads_quad.timber_variables[quad].t_stamps-t_ref)/3600., heatloads_quad.timber_variables[quad].values]).T
+    quad_time_heatload_cut = cut_arrays(quad_time_heatload)
+
+    quad_avg_heatload = np.mean(quad_time_heatload_cut)
+    quad_avg_heatload_sigma = np.std(quad_time_heatload_cut)
+    label = 'Q' + quad[6:10]
+    temp_dict[label] = [quad_avg_heatload, quad_avg_heatload_sigma]
+    print("The heatload on quad %s is\n%.2f\t%.2f" % (label, quad_avg_heatload, quad_avg_heatload_sigma))
+
 
 # SAVE PICKLE
 
@@ -141,6 +161,10 @@ if store_pickle:
     
     if filln_str not in heatload_dict.keys():
         heatload_dict[filln_str] = {}
+
+    if overwrite_pickle and t_o_i_str in heatload_dict[filln_str].keys():
+        del heatload_dict[filln_str][t_o_i_str]
+
     if t_o_i_str not in heatload_dict[filln_str].keys():
         heatload_dict[filln_str][t_o_i_str] = temp_dict
         with open(pickle_name, 'w') as hl_dict_file:
@@ -164,8 +188,9 @@ fig.set_size_inches(15., 8.)
 plt.suptitle(' Fill. %d started on %s\nLHC Arcs' % (filln, tref_string))
 plt.subplots_adjust(right=0.7, wspace=0.30)
 
-sptotint = plt.subplot(2, 1, 1)
-sphlcell = plt.subplot(2, 1, 2, sharex=sptotint)
+sptotint = plt.subplot(3, 1, 1)
+sphlcell = plt.subplot(3, 1, 2, sharex=sptotint)
+sphlquad = plt.subplot(3, 1, 3, sharex=sptotint)
 spenergy = sptotint.twinx()
 
 # Energy
@@ -179,7 +204,7 @@ for beam_n in beams_list:
     sptotint.set_ylabel('Total intensity [p+]')
     sptotint.grid('on')
 
-# Heat Loads
+# Heat Loads Arcs
 for key in arc_keys_list + [model_key]:
     if key == model_key:
         label = 'Imp.+SR'
@@ -191,8 +216,16 @@ for key in arc_keys_list + [model_key]:
 sphlcell.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
 sphlcell.grid('on')
 
+# Heat Loads Quads
+for key in quad_keys_list:
+    label = 'Q' + key[6:10]
+    sphlquad.plot((heatloads_quad.timber_variables[key].t_stamps-t_ref)/3600.,
+                  heatloads_quad.timber_variables[key].values, lw=2., label=label)
+sphlquad.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
+sphlquad.grid('on')
+
 # Vertical line to indicate time_of_interest
-for sp in [sphlcell, spenergy]:
+for sp in [sphlcell, spenergy, sphlquad]:
     sp.axvline(time_of_interest, color='black')
     for xx in [time_of_interest - avg_period, time_of_interest + avg_period]:
         sp.axvline(xx, ls='--', color='black')
