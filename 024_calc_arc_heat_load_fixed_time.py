@@ -177,15 +177,13 @@ if store_pickle:
     
     filln_str = str(filln)
     t_o_i_str = str(time_of_interest)
+    main_key = filln_str + ' ' + t_o_i_str
     
-    if filln_str not in heatload_dict.keys():
-        heatload_dict[filln_str] = {}
+    if overwrite_pickle and main_key in heatload_dict.keys():
+        del heatload_dict[main_key]
 
-    if overwrite_pickle and t_o_i_str in heatload_dict[filln_str].keys():
-        del heatload_dict[filln_str][t_o_i_str]
-
-    if t_o_i_str not in heatload_dict[filln_str].keys():
-        heatload_dict[filln_str][t_o_i_str] = this_hl_dict
+    if main_key not in heatload_dict.keys():
+        heatload_dict[main_key] = this_hl_dict
         with open(pickle_name, 'w') as hl_dict_file:
             cPickle.dump(heatload_dict,hl_dict_file)
     else:
