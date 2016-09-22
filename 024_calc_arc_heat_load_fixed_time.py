@@ -1,5 +1,3 @@
-#!/usr/bin/python2
-
 # This Script is intended to be used for PyEcloud benchmark simulations.
 # The heat load on the arc is calculated using LHC data for a given fill and time.
 # Comparing these to the heatloads from PyEcloud simulations will then allow for 
@@ -54,7 +52,7 @@ parser.add_argument('-a', metavar='AVG_PERIOD', type=float, default=default_avg_
 # Save to Pickle (optional)
 parser.add_argument('-p', help='Save heatloads to pickle if entry does not exist', action='store_true')
 
-# Force overwrite of pickle
+# Force overwrite of pickle (optional)
 parser.add_argument('-f', help='Force overwrite of pickle entry', action='store_true')
 
 # Plot (optional)
@@ -72,21 +70,24 @@ dict_main_key = str(filln) + str(time_of_interest)
 
 # A minimum fill number is inferred from the 016 script
 if filln < first_correct_filln:
-    print("Fill number too small. Look at the help for this script.")
-    sys.exit()
+    raise ValueError("Fill number too small. Look at the help for this script.")
 
 
 # LOAD DATA
 
 dict_hl_groups = {}
-dict_hl_groups['Arcs'] = HL.variable_lists_heatloads['AVG_ARC']
-dict_hl_groups['Q5s_IR15'] = HL.variable_lists_heatloads['Q5s_IR1']+HL.variable_lists_heatloads['Q5s_IR5']
-group_names = dict_hl_groups.keys()
-arc_keys_list = dict_hl_groups['Arcs']
-quad_keys_list = dict_hl_groups['Q5s_IR15']
-
+arc_keys_list = HL.variable_lists_heatloads['AVG_ARC']
+quad_keys_list = HL.variable_lists_heatloads['Q6s_IR1'] \
+        + HL.variable_lists_heatloads['Q6s_IR5'] \
+        + HL.variable_lists_heatloads['Q6s_IR2'] \
+        + HL.variable_lists_heatloads['Q6s_IR8'] 
 model_key = 'LHC.QBS_CALCULATED_ARC.TOTAL'
+impedance_keys = ['LHC.QBS_CALCULATED_ARC_IMPED.B1', 'LHC.QBS_CALCULATED_ARC_IMPED.B2']
+synchRad_keys = ['LHC.QBS_CALCULATED_ARC_SYNCH_RAD.B1', 'LHC.QBS_CALCULATED_ARC_SYNCH_RAD.B2']
 model_key_nice = 'Imp+SR'
+
+all_keys = arc_keys_list + quad_keys_list + [model_key] + impedance_keys + synchRad_keys
+
 
 with open('fills_and_bmodes.pkl', 'rb') as fid:
     dict_fill_bmodes = cPickle.load(fid)
@@ -104,47 +105,65 @@ energy = Energy.energy(fill_dict, beam=1)
 t_ref = dict_fill_bmodes[filln]['t_startfill']
 tref_string = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime(t_ref))
 
-heatloads = SetOfHomogeneousNumericVariables(variable_list=arc_keys_list+[model_key], timber_variables=fill_dict)
-heatloads_quad  = SetOfHomogeneousNumericVariables(variable_list=quad_keys_list, timber_variables=fill_dict)
+heatloads = SetOfHomogeneousNumericVariables(variable_list=all_keys, timber_variables=fill_dict)
 
 
 # COMPUTE AVERAGES
 
+# The heat loads calculated during this call of the script are stored here
+this_hl_dict = {}
+
+def get_output_key(input_key):
+    """ Map keys for output dictionary. """
+    if input_key in arc_keys_list:
+        return input_key[0:3]
+    elif input_key in quad_keys_list:
+        return 'Q' + input_key[6:10]
+    elif key == model_key:
+        return model_key_nice
+    elif key in impedance_keys:
+        return 'Imp'
+    elif key in synchRad_keys:
+        return 'SR'
+    else:
+        raise ValueError('Wrong call for output_key: %s' % input_key)
+
 def cut_arrays(arr):
+    """
+    Expects two column input: time, values.
+    Returns the values for which time-avg_period < time < time+avg_period is satisfied
+    """
     condition = np.logical_and(time_of_interest - avg_period < arr[:,0], arr[:,0] < time_of_interest + avg_period)
     return np.extract(condition, arr[:,1])
 
-model_time_heatload = np.array([(heatloads.timber_variables[model_key].t_stamps-t_ref)/3600., heatloads.timber_variables[model_key].values]).T
-model_time_heatload_cut = cut_arrays(model_time_heatload)
+def get_heat_loads(key):
+    """
+    Gets the heatloads of the specified key through the timber variables module.
+    """
+    time_heatload = np.array([(heatloads.timber_variables[key].t_stamps-t_ref)/3600., heatloads.timber_variables[key].values]).T
+    time_heatload_cut = cut_arrays(time_heatload)
+    avg_heatload = np.mean(time_heatload_cut)
+    avg_heatload_sigma = np.std(time_heatload_cut)
 
-model_heatload = np.mean(model_time_heatload_cut)
-model_heatload_sigma = np.std(model_time_heatload_cut)
+    return [avg_heatload, avg_heatload_sigma]
 
-print("The heatload from impedance / SR is\n%.2f\t%.2f\n" % (model_heatload, model_heatload_sigma))
+def add_to_output_dict(input_key, avg_heatload, avg_heatload_sigma):
+    output_key = get_output_key(input_key)
+    print("The heatload %s is\n%.2f\t%.2f\n" % (output_key, avg_heatload, avg_heatload_sigma))
+    this_hl_dict[output_key] = [avg_heatload, avg_heatload_sigma]
+    
 
+for key in arc_keys_list + quad_keys_list + [model_key]:
+    [hl, sigma] = get_heat_loads(key)
+    add_to_output_dict(key,hl,sigma)
 
-temp_dict = {}
-temp_dict[model_key_nice] = [model_heatload, model_heatload_sigma]
-
-for key in arc_keys_list:
-    arc_time_heatload = np.array([(heatloads.timber_variables[key].t_stamps-t_ref)/3600., heatloads.timber_variables[key].values]).T
-    arc_time_heatload_cut = cut_arrays(arc_time_heatload)
-
-    avg_heatload = np.mean(arc_time_heatload_cut) - model_heatload
-    avg_heatload_sigma = np.sqrt(np.var(arc_time_heatload_cut)+ model_heatload_sigma**2)
-    label = key[0:3]
-    temp_dict[label] = [avg_heatload, avg_heatload_sigma]
-    print("The heatload on arc %s attributed to e-cloud is\n%.2f\t%.2f" % (label, avg_heatload, avg_heatload_sigma))
-
-for quad in quad_keys_list:
-    quad_time_heatload = np.array([(heatloads_quad.timber_variables[quad].t_stamps-t_ref)/3600., heatloads_quad.timber_variables[quad].values]).T
-    quad_time_heatload_cut = cut_arrays(quad_time_heatload)
-
-    quad_avg_heatload = np.mean(quad_time_heatload_cut)
-    quad_avg_heatload_sigma = np.std(quad_time_heatload_cut)
-    label = 'Q' + quad[6:10]
-    temp_dict[label] = [quad_avg_heatload, quad_avg_heatload_sigma]
-    print("The heatload on quad %s is\n%.2f\t%.2f" % (label, quad_avg_heatload, quad_avg_heatload_sigma))
+for key_list in [synchRad_keys, impedance_keys]:
+    hl, sigma = 0, 0
+    for key in key_list:
+        [this_hl, this_sigma] = get_heat_loads(key)
+        hl += this_hl
+        sigma += this_sigma
+    add_to_output_dict(key,hl,sigma)
 
 
 # SAVE PICKLE
@@ -166,11 +185,11 @@ if store_pickle:
         del heatload_dict[filln_str][t_o_i_str]
 
     if t_o_i_str not in heatload_dict[filln_str].keys():
-        heatload_dict[filln_str][t_o_i_str] = temp_dict
+        heatload_dict[filln_str][t_o_i_str] = this_hl_dict
         with open(pickle_name, 'w') as hl_dict_file:
             cPickle.dump(heatload_dict,hl_dict_file)
     else:
-	print('This entry already exists in the pickle, not storing!!\n')
+        print('This entry already exists in the pickle, not storing!!\n')
     
 
 # PLOTS
@@ -182,10 +201,10 @@ plt.close('all')
 fig = plt.figure(1, figsize=(12, 10))
 
 fig.patch.set_facecolor('w')
-fig.canvas.set_window_title('LHC Arcs')
+fig.canvas.set_window_title('LHC Arcs and Q6')
 fig.set_size_inches(15., 8.)
 
-plt.suptitle(' Fill. %d started on %s\nLHC Arcs' % (filln, tref_string))
+plt.suptitle(' Fill. %d started on %s\nLHC Arcs and Q6' % (filln, tref_string))
 plt.subplots_adjust(right=0.7, wspace=0.30)
 
 sptotint = plt.subplot(3, 1, 1)
@@ -209,7 +228,7 @@ for key in arc_keys_list + [model_key]:
     if key == model_key:
         label = 'Imp.+SR'
     else:
-        label = key[0:2]  # Dictionary keys begin with S[0-9]{2}
+        label = key[0:3]  # Dictionary keys begin with S[0-9]{2}
     sphlcell.plot((heatloads.timber_variables[key].t_stamps-t_ref)/3600.,
                   heatloads.timber_variables[key].values, '--', lw=2., label=label)
 
@@ -219,8 +238,8 @@ sphlcell.grid('on')
 # Heat Loads Quads
 for key in quad_keys_list:
     label = 'Q' + key[6:10]
-    sphlquad.plot((heatloads_quad.timber_variables[key].t_stamps-t_ref)/3600.,
-                  heatloads_quad.timber_variables[key].values, lw=2., label=label)
+    sphlquad.plot((heatloads.timber_variables[key].t_stamps-t_ref)/3600.,
+                  heatloads.timber_variables[key].values, lw=2., label=label)
 sphlquad.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
 sphlquad.grid('on')
 
