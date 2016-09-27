@@ -26,8 +26,10 @@ filln_list = [5045]
 n_bunches = 2076
 filln_list = [5173]
 n_bunches = 2076
-filln_list = [5181]
+filln_list = [5219, 5222, 5223]
 n_bunches = 2076
+#filln_list = [5181]
+#n_bunches = 2076
 # filln_list = [5198]
 # n_bunches = 2172
 # filln_list = [5199]
@@ -215,10 +217,16 @@ for i_fill, filln in enumerate(filln_list):
         
         t_hl = heatloads.timber_variables[kk].t_stamps
         mask_he = t_hl>dict_fill_bmodes[filln]['t_stop_SQUEEZE']
+        print(mask_he, t_hl)
         subtract = np.interp(t_hl[mask_he], hl_model.timber_variables['LHC.QBS_CALCULATED_ARC.TOTAL'].t_stamps, hl_model.timber_variables['LHC.QBS_CALCULATED_ARC.TOTAL'].values)
         
-        spvsint.plot(bct_bx[beam_n].interp(t_hl[mask_he])/n_bunches, heatloads.timber_variables[kk].values[mask_he]-offset-subtract,
-            '.', color=colorcurr, lw=2., label=label)
+        print(kk)
+        if i_fill == 0:
+            spvsint.plot(bct_bx[beam_n].interp(t_hl[mask_he])/n_bunches, heatloads.timber_variables[kk].values[mask_he]-offset-subtract,
+                '.', color=colorcurr, lw=2., label=label)
+        else:
+            spvsint.plot(bct_bx[beam_n].interp(t_hl[mask_he])/n_bunches, heatloads.timber_variables[kk].values[mask_he]-offset-subtract,
+                '.', color=colorcurr, lw=2.)
     
     t_bl = blength_bx[beam_n].t_stamps
     mask_bl_he = t_bl>dict_fill_bmodes[filln]['t_stop_SQUEEZE']
