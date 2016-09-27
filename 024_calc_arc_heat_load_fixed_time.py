@@ -25,6 +25,7 @@ from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumeri
 # CONFIG
 
 default_avg_period = 0.1  # in hours
+default_offset_period_hrs = 0.25
 first_correct_filln = 4474
 colstr = {}
 colstr[1] = 'b'
@@ -40,32 +41,26 @@ pickle_name = 'heatload_arcs.pkl'
 parser = arg.ArgumentParser(description='Calculate the heat loads on all arcs at a specified time for a given fill.' +
      'An average is taken. The heat loads should be stable at this point in time.')
 
-# Fill number
 parser.add_argument('fill', metavar='FILL', type=int, help='LHC fill number, must be at least %i.' % first_correct_filln)
-
-# Point in Time
 parser.add_argument('time', metavar='TIME', type=str, help='Time after the specified FILL number has been set.\n Obtain it with the 016 script.')
-
-# Averaging period (optional)
 parser.add_argument('-a', metavar='AVG_PERIOD', type=float, default=default_avg_period, 
                     help='The time in hours this program uses to find an average around the specified TIME.\nDefault: +/- %.2f' % default_avg_period)
-# Save to Pickle (optional)
 parser.add_argument('-p', help='Save heatloads to pickle if entry does not exist', action='store_true')
-
-# Force overwrite of pickle (optional)
 parser.add_argument('-f', help='Force overwrite of pickle entry', action='store_true')
-
-# Plot (optional)
 parser.add_argument('-n', help='No plot will be shown', action='store_false')
+parser.add_argument('-o', metavar='OFFSET_PERIOD', type=float, default=default_offset_period_hrs, 
+                    help='The time in hours this program uses to calculate an offset.\nDefault: %.2f' % default_offset_period_hrs)
 
 args = parser.parse_args()
 avg_period = args.a
 filln = args.fill
 time_of_interest_str = args.time
-time_of_interest = float(time_of_interest_str)
 store_pickle = args.p or args.f
 overwrite_pickle = args.f
 show_plot = args.n
+offset_time_hrs = args.o
+
+time_of_interest = float(time_of_interest_str)
 dict_main_key = str(filln) + str(time_of_interest)
 
 # A minimum fill number is inferred from the 016 script
@@ -136,6 +131,10 @@ def cut_arrays(arr):
     condition = np.logical_and(time_of_interest - avg_period < arr[:,0], arr[:,0] < time_of_interest + avg_period)
     return np.extract(condition, arr[:,1])
 
+def first_30min(arr):
+    condition = arr[:,0] < offset_time_hrs
+    return np.extract(condition, arr[:,1])
+
 def get_heat_loads(key):
     """
     Gets the heatloads of the specified key through the timber variables module.
@@ -144,26 +143,28 @@ def get_heat_loads(key):
     time_heatload_cut = cut_arrays(time_heatload)
     avg_heatload = np.mean(time_heatload_cut)
     avg_heatload_sigma = np.std(time_heatload_cut)
+    offset_cut = first_30min(time_heatload)
+    avg_offset = np.mean(offset_cut)
 
-    return [avg_heatload, avg_heatload_sigma]
+    return [avg_heatload, avg_heatload_sigma, avg_offset]
 
-def add_to_output_dict(input_key, avg_heatload, avg_heatload_sigma):
+def add_to_output_dict(input_key, avg_heatload, avg_heatload_sigma, offset):
     output_key = get_output_key(input_key)
-    print("The heatload %s is\n%.2f\t%.2f\n" % (output_key, avg_heatload, avg_heatload_sigma))
-    this_hl_dict[output_key] = [avg_heatload, avg_heatload_sigma]
+    print("The heatload %s is\n%.2f\t%.2f\twith offset %.2f\n" % (output_key, avg_heatload, avg_heatload_sigma,offset))
+    this_hl_dict[output_key] = [avg_heatload, avg_heatload_sigma, offset]
     
 
 for key in arc_keys_list + quad_keys_list + [model_key]:
-    [hl, sigma] = get_heat_loads(key)
-    add_to_output_dict(key,hl,sigma)
+    [hl, sigma, offset] = get_heat_loads(key)
+    add_to_output_dict(key,hl,sigma,offset)
 
 for key_list in [synchRad_keys, impedance_keys]:
     hl, sigma = 0, 0
     for key in key_list:
-        [this_hl, this_sigma] = get_heat_loads(key)
+        [this_hl, this_sigma, offset] = get_heat_loads(key)
         hl += this_hl
         sigma += this_sigma
-    add_to_output_dict(key,hl,sigma)
+    add_to_output_dict(key,hl,sigma, 0)
 
 
 # SAVE PICKLE
@@ -244,6 +245,7 @@ sphlquad.grid('on')
 # Vertical line to indicate time_of_interest
 for sp in [sphlcell, spenergy, sphlquad]:
     sp.axvline(time_of_interest, color='black')
+    sp.axvline(offset_time_hrs, color='black')
     for xx in [time_of_interest - avg_period, time_of_interest + avg_period]:
         sp.axvline(xx, ls='--', color='black')
 
