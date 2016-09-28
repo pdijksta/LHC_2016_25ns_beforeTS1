@@ -25,7 +25,9 @@ from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumeri
 # CONFIG
 
 default_avg_period = 0.1  # in hours
-default_offset_period_hrs = 0.25
+default_offset_period_begin = 0.1
+default_offset_period_end = 0.35
+
 first_correct_filln = 4474
 colstr = {}
 colstr[1] = 'b'
@@ -45,11 +47,11 @@ parser.add_argument('fill', metavar='FILL', type=int, help='LHC fill number, mus
 parser.add_argument('time', metavar='TIME', type=str, help='Time after the specified FILL number has been set.\n Obtain it with the 016 script.')
 parser.add_argument('-a', metavar='AVG_PERIOD', type=float, default=default_avg_period, 
                     help='The time in hours this program uses to find an average around the specified TIME.\nDefault: +/- %.2f' % default_avg_period)
-parser.add_argument('-p', help='Save heatloads to pickle if entry does not exist', action='store_true')
-parser.add_argument('-f', help='Force overwrite of pickle entry', action='store_true')
-parser.add_argument('-n', help='No plot will be shown', action='store_false')
-parser.add_argument('-o', metavar='OFFSET_PERIOD', type=float, default=default_offset_period_hrs, 
-                    help='The time in hours this program uses to calculate an offset.\nDefault: %.2f' % default_offset_period_hrs)
+parser.add_argument('-p', help='Save heat loads to pickle if entry does not exist.', action='store_true')
+parser.add_argument('-f', help='Overwrite heat loads at the pickle if the entry does already exist.', action='store_true')
+parser.add_argument('-n', help='No plot will be shown.', action='store_false')
+parser.add_argument('-o', metavar=('T1', 'T2'), nargs=2, type=float, default=[default_offset_period_begin, default_offset_period_end], 
+                    help='The time in hours this program uses to calculate an offset.\nDefault: %.2f - %.2f' % (default_offset_period_begin, default_offset_period_end))
 
 args = parser.parse_args()
 avg_period = args.a
@@ -58,7 +60,7 @@ time_of_interest_str = args.time
 store_pickle = args.p or args.f
 overwrite_pickle = args.f
 show_plot = args.n
-offset_time_hrs = args.o
+[offset_time_hrs_begin, offset_time_hrs_end] = args.o
 
 time_of_interest = float(time_of_interest_str)
 dict_main_key = str(filln) + str(time_of_interest)
@@ -123,16 +125,12 @@ def get_output_key(input_key):
     else:
         raise ValueError('Wrong call for output_key: %s' % input_key)
 
-def cut_arrays(arr):
+def cut_arrays(arr, begin=(time_of_interest-avg_period), end=time_of_interest+avg_period):
     """
     Expects two column input: time, values.
     Returns the values for which time-avg_period < time < time+avg_period is satisfied
     """
-    condition = np.logical_and(time_of_interest - avg_period < arr[:,0], arr[:,0] < time_of_interest + avg_period)
-    return np.extract(condition, arr[:,1])
-
-def first_30min(arr):
-    condition = arr[:,0] < offset_time_hrs
+    condition = np.logical_and(begin < arr[:,0], arr[:,0] < end)
     return np.extract(condition, arr[:,1])
 
 def get_heat_loads(key):
@@ -143,7 +141,7 @@ def get_heat_loads(key):
     time_heatload_cut = cut_arrays(time_heatload)
     avg_heatload = np.mean(time_heatload_cut)
     avg_heatload_sigma = np.std(time_heatload_cut)
-    offset_cut = first_30min(time_heatload)
+    offset_cut = cut_arrays(time_heatload, begin=offset_time_hrs_begin, end=offset_time_hrs_end)
     avg_offset = np.mean(offset_cut)
 
     return [avg_heatload, avg_heatload_sigma, avg_offset]
@@ -170,6 +168,7 @@ for key_list in [synchRad_keys, impedance_keys]:
 # SAVE PICKLE
 
 if store_pickle:
+    print('Storing into pickle.')
     if not os.path.isfile(pickle_name):
         heatload_dict = {} 
     else :
@@ -181,6 +180,7 @@ if store_pickle:
     main_key = filln_str + ' ' + t_o_i_str
     
     if overwrite_pickle and main_key in heatload_dict.keys():
+        print('Deleting old entry.')
         del heatload_dict[main_key]
 
     if main_key not in heatload_dict.keys():
@@ -245,7 +245,8 @@ sphlquad.grid('on')
 # Vertical line to indicate time_of_interest
 for sp in [sphlcell, spenergy, sphlquad]:
     sp.axvline(time_of_interest, color='black')
-    sp.axvline(offset_time_hrs, color='black')
+    sp.axvline(offset_time_hrs_begin, color='black')
+    sp.axvline(offset_time_hrs_end, color='black')
     for xx in [time_of_interest - avg_period, time_of_interest + avg_period]:
         sp.axvline(xx, ls='--', color='black')
 
