@@ -148,7 +148,7 @@ def get_heat_loads(key):
 
 def add_to_output_dict(input_key, avg_heatload, avg_heatload_sigma, offset):
     output_key = get_output_key(input_key)
-    print("The heatload %s is\n%.2f\t%.2f\twith offset %.2f\n" % (output_key, avg_heatload, avg_heatload_sigma,offset))
+    #print("The heatload %s is\n%.2f\t%.2f\twith offset %.2f\n" % (output_key, avg_heatload, avg_heatload_sigma,offset))
     this_hl_dict[output_key] = [avg_heatload, avg_heatload_sigma, offset]
     
 
