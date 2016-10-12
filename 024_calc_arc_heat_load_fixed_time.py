@@ -230,7 +230,7 @@ for key in arc_keys_list + [model_key]:
         label = key[0:3]  # Dictionary keys begin with S[0-9]{2}
     sphlcell.plot((heatloads.timber_variables[key].t_stamps-t_ref)/3600.,
                   heatloads.timber_variables[key].values, '--', lw=2., label=label)
-    sphlcell.set_ylabel('Heatload [W]')
+    sphlcell.set_ylabel('Heat load [W]')
 
 sphlcell.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
 sphlcell.grid('on')
@@ -242,7 +242,7 @@ for key in quad_keys_list:
                   heatloads.timber_variables[key].values, lw=2., label=label)
 sphlquad.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
 sphlquad.grid('on')
-sphlquad.set_ylabel('Heatload [W]')
+sphlquad.set_ylabel('Heat load [W]')
 
 # Vertical line to indicate time_of_interest
 for sp in [sphlcell, spenergy, sphlquad]:
