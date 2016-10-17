@@ -22,9 +22,7 @@ import LHCMeasurementTools.LHC_Heatloads as HL
 from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumericVariables
 from LHCMeasurementTools.mystyle import colorprog
 
-
 # CONFIG
-
 default_avg_period = 0.1  # in hours
 default_offset_period_begin = 0.1
 default_offset_period_end = 0.35
@@ -38,14 +36,11 @@ myfontsz = 16
 ms.mystyle_arial(fontsz=myfontsz, dist_tick_lab=8)
 pickle_name = 'heatload_arcs.pkl'
 
-# Update when logbook SR values are correct.
-# Update the SR from before
+# Update this fill number once the logbook SR values are correct.
 filln_correct_synchrad = 1000000000
 correction_factor_synchrad = 0.65
 
-
 # PARSE ARGS
-
 parser = arg.ArgumentParser(description='Calculate the heat loads on all arcs at a specified time for a given fill.' +
      'An average is taken. The heat loads should be stable at this point in time.')
 
@@ -75,9 +70,14 @@ dict_main_key = str(filln) + str(time_of_interest)
 if filln < first_correct_filln:
     raise ValueError("Fill number too small. Look at the help for this script.")
 
+# The heat loads calculated during this call of the script are stored here
+this_hl_dict = {}
+this_hl_dict['Options'] = {\
+        'Offset' : [offset_time_hrs_begin, offset_time_hrs_end],
+        'Avg_period' : avg_period
+        }
 
 # LOAD DATA
-
 dict_hl_groups = {}
 arc_keys_list = HL.variable_lists_heatloads['AVG_ARC']
 quad_keys_list = HL.variable_lists_heatloads['Q6s_IR1'] \
@@ -113,10 +113,6 @@ heatloads = SetOfHomogeneousNumericVariables(variable_list=all_keys, timber_vari
 
 
 # COMPUTE AVERAGES
-
-# The heat loads calculated during this call of the script are stored here
-this_hl_dict = {}
-
 def get_output_key(input_key):
     """ Map keys for output dictionary. """
     if input_key in arc_keys_list:
@@ -156,8 +152,11 @@ def get_heat_loads(key):
 def add_to_output_dict(input_key, avg_heatload, avg_heatload_sigma, offset):
     output_key = get_output_key(input_key)
     #print("The heatload %s is\n%.2f\t%.2f\twith offset %.2f\n" % (output_key, avg_heatload, avg_heatload_sigma,offset))
-    this_hl_dict[output_key] = [avg_heatload, avg_heatload_sigma, offset]
-    
+    this_hl_dict[output_key] = {\
+            'Heat_load': avg_heatload, 
+            'Sigma': avg_heatload_sigma,
+            'Offset': offset
+            }
 
 for key in arc_keys_list + quad_keys_list:
     [hl, sigma, offset] = get_heat_loads(key)
@@ -261,9 +260,8 @@ for key in arc_keys_list + [model_key] + quad_keys_list:
     yy_time = (heatloads.timber_variables[key].t_stamps-t_ref)/3600.
     ones = np.ones_like(yy_time)
     
-
     sp.plot(yy_time, heatloads.timber_variables[key].values, '-', lw=2., label=output_key, color=color)
-    sp.plot(yy_time, this_hl_dict[output_key][0]*ones, '--', lw=1, color=color)
+    sp.plot(yy_time, this_hl_dict[output_key]['Heat_load']*ones, '--', lw=1, color=color)
 
 sphlquad.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
 sphlcell.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
