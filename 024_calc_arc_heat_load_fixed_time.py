@@ -20,6 +20,7 @@ import LHCMeasurementTools.mystyle as ms
 from LHCMeasurementTools.LHC_BCT import BCT
 import LHCMeasurementTools.LHC_Heatloads as HL
 from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumericVariables
+from LHCMeasurementTools.mystyle import colorprog
 
 
 # CONFIG
@@ -36,6 +37,11 @@ beams_list = [1, 2]
 myfontsz = 16
 ms.mystyle_arial(fontsz=myfontsz, dist_tick_lab=8)
 pickle_name = 'heatload_arcs.pkl'
+
+# Update when logbook SR values are correct.
+# Update the SR from before
+filln_correct_synchrad = 1000000000
+correction_factor_synchrad = 0.65
 
 
 # PARSE ARGS
@@ -81,10 +87,11 @@ quad_keys_list = HL.variable_lists_heatloads['Q6s_IR1'] \
 model_key = 'LHC.QBS_CALCULATED_ARC.TOTAL'
 impedance_keys = ['LHC.QBS_CALCULATED_ARC_IMPED.B1', 'LHC.QBS_CALCULATED_ARC_IMPED.B2']
 synchRad_keys = ['LHC.QBS_CALCULATED_ARC_SYNCH_RAD.B1', 'LHC.QBS_CALCULATED_ARC_SYNCH_RAD.B2']
-model_key_nice = 'Imp+SR'
+imp_key_nice = 'Imp'
+sr_key_nice = 'SR'
+model_key_nice = imp_key_nice + '+' + sr_key_nice
 
 all_keys = arc_keys_list + quad_keys_list + [model_key] + impedance_keys + synchRad_keys
-
 
 with open('fills_and_bmodes.pkl', 'rb') as fid:
     dict_fill_bmodes = cPickle.load(fid)
@@ -116,12 +123,12 @@ def get_output_key(input_key):
         return input_key[0:3]
     elif input_key in quad_keys_list:
         return 'Q' + input_key[6:10]
-    elif key == model_key:
+    elif input_key is model_key:
         return model_key_nice
-    elif key in impedance_keys:
-        return 'Imp'
-    elif key in synchRad_keys:
-        return 'SR'
+    elif input_key in impedance_keys:
+        return imp_key_nice
+    elif input_key in synchRad_keys:
+        return sr_key_nice
     else:
         raise ValueError('Wrong call for output_key: %s' % input_key)
 
@@ -152,18 +159,29 @@ def add_to_output_dict(input_key, avg_heatload, avg_heatload_sigma, offset):
     this_hl_dict[output_key] = [avg_heatload, avg_heatload_sigma, offset]
     
 
-for key in arc_keys_list + quad_keys_list + [model_key]:
+for key in arc_keys_list + quad_keys_list:
     [hl, sigma, offset] = get_heat_loads(key)
     add_to_output_dict(key,hl,sigma,offset)
 
+hl_model, hl_sigma_sq = 0, 0
+
 for key_list in [synchRad_keys, impedance_keys]:
-    hl, sigma = 0, 0
+    hl, sigma_sq = 0, 0
     for key in key_list:
         [this_hl, this_sigma, offset] = get_heat_loads(key)
         hl += this_hl
-        sigma += this_sigma
-    add_to_output_dict(key,hl,sigma, 0)
+        sigma_sq += this_sigma**2
+    # Correct for wrong SR calculation
+    if filln < filln_correct_synchrad and key_list is synchRad_keys:
+        print("Correcting the synchrotron radiation heat load!")
+        hl *=  correction_factor_synchrad
+        sigma_sq *= correction_factor_synchrad**2
+    hl_model += hl
+    hl_sigma_sq += sigma_sq
 
+    add_to_output_dict(key, hl, np.sqrt(sigma_sq), 0)
+
+add_to_output_dict(model_key, hl_model, np.sqrt(hl_sigma_sq), 0)
 
 # SAVE PICKLE
 
@@ -186,7 +204,7 @@ if store_pickle:
     if main_key not in heatload_dict.keys():
         heatload_dict[main_key] = this_hl_dict
         with open(pickle_name, 'w') as hl_dict_file:
-            cPickle.dump(heatload_dict,hl_dict_file)
+            cPickle.dump(heatload_dict, hl_dict_file, protocol=-1)
     else:
         print('This entry already exists in the pickle, not storing!!\n')
     
@@ -206,43 +224,49 @@ fig.set_size_inches(15., 8.)
 plt.suptitle(' Fill. %d started on %s\nLHC Arcs and Q6' % (filln, tref_string))
 plt.subplots_adjust(right=0.7, wspace=0.30)
 
+# Intensity and Energy
 sptotint = plt.subplot(3, 1, 1)
-sphlcell = plt.subplot(3, 1, 2, sharex=sptotint)
-sphlquad = plt.subplot(3, 1, 3, sharex=sptotint)
-spenergy = sptotint.twinx()
+sptotint.set_ylabel('Total intensity [p+]')
+sptotint.grid('on')
+for beam_n in beams_list:
+    sptotint.plot((bct_bx[beam_n].t_stamps-t_ref)/3600., bct_bx[beam_n].values, '-', color=colstr[beam_n])
 
-# Energy
+spenergy = sptotint.twinx()
 spenergy.plot((energy.t_stamps-t_ref)/3600., energy.energy/1e3, c='black', lw=2.)  # alpha=0.1)
 spenergy.set_ylabel('Energy [TeV]')
 spenergy.set_ylim(0, 7)
 
-# Intensity
-for beam_n in beams_list:
-    sptotint.plot((bct_bx[beam_n].t_stamps-t_ref)/3600., bct_bx[beam_n].values, '-', color=colstr[beam_n])
-    sptotint.set_ylabel('Total intensity [p+]')
-    sptotint.grid('on')
-
-# Heat Loads Arcs
-for key in arc_keys_list + [model_key]:
-    if key == model_key:
-        label = 'Imp.+SR'
-    else:
-        label = key[0:3]  # Dictionary keys begin with S[0-9]{2}
-    sphlcell.plot((heatloads.timber_variables[key].t_stamps-t_ref)/3600.,
-                  heatloads.timber_variables[key].values, '--', lw=2., label=label)
-    sphlcell.set_ylabel('Heat load [W]')
-
-sphlcell.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
+# Cell heat loads
+sphlcell = plt.subplot(3, 1, 2, sharex=sptotint)
+sphlcell.set_ylabel('Heat load [W]')
 sphlcell.grid('on')
 
-# Heat Loads Quads
-for key in quad_keys_list:
-    label = 'Q' + key[6:10]
-    sphlquad.plot((heatloads.timber_variables[key].t_stamps-t_ref)/3600.,
-                  heatloads.timber_variables[key].values, lw=2., label=label)
-sphlquad.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
+# Quad heat loads
+sphlquad = plt.subplot(3, 1, 3, sharex=sptotint)
 sphlquad.grid('on')
 sphlquad.set_ylabel('Heat load [W]')
+
+# Heat Loads Arcs
+arc_ctr, quad_ctr = 0, 0
+for key in arc_keys_list + [model_key] + quad_keys_list:
+    output_key = get_output_key(key)
+    if output_key[0] == 'Q':
+        sp = sphlquad
+        color = colorprog(quad_ctr, len(quad_keys_list))
+        quad_ctr += 1
+    else:
+        sp = sphlcell
+        color = colorprog(arc_ctr, len(arc_keys_list)+1)
+        arc_ctr += 1
+    yy_time = (heatloads.timber_variables[key].t_stamps-t_ref)/3600.
+    ones = np.ones_like(yy_time)
+    
+
+    sp.plot(yy_time, heatloads.timber_variables[key].values, '-', lw=2., label=output_key, color=color)
+    sp.plot(yy_time, this_hl_dict[output_key][0]*ones, '--', lw=1, color=color)
+
+sphlquad.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
+sphlcell.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
 
 # Vertical line to indicate time_of_interest
 for sp in [sphlcell, spenergy, sphlquad]:
