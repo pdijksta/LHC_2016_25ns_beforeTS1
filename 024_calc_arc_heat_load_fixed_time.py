@@ -206,72 +206,68 @@ if store_pickle:
             cPickle.dump(heatload_dict, hl_dict_file, protocol=-1)
     else:
         print('This entry already exists in the pickle, not storing!!\n')
-    
 
 # PLOTS
+if show_plot:
+    plt.close('all')
+    fig = plt.figure()
 
-if not show_plot:
-    sys.exit()
+    fig.patch.set_facecolor('w')
+    fig.canvas.set_window_title('LHC Arcs and Q6')
+    fig.set_size_inches(15., 8.)
 
-plt.close('all')
-fig = plt.figure(1, figsize=(12, 10))
+    plt.suptitle(' Fill. %d started on %s\nLHC Arcs and Q6' % (filln, tref_string))
+    plt.subplots_adjust(right=0.7, wspace=0.30)
 
-fig.patch.set_facecolor('w')
-fig.canvas.set_window_title('LHC Arcs and Q6')
-fig.set_size_inches(15., 8.)
+    # Intensity and Energy
+    sptotint = plt.subplot(3, 1, 1)
+    sptotint.set_ylabel('Total intensity [p+]')
+    sptotint.grid('on')
+    for beam_n in beams_list:
+        sptotint.plot((bct_bx[beam_n].t_stamps-t_ref)/3600., bct_bx[beam_n].values, '-', color=colstr[beam_n])
 
-plt.suptitle(' Fill. %d started on %s\nLHC Arcs and Q6' % (filln, tref_string))
-plt.subplots_adjust(right=0.7, wspace=0.30)
+    spenergy = sptotint.twinx()
+    spenergy.plot((energy.t_stamps-t_ref)/3600., energy.energy/1e3, c='black', lw=2.)  # alpha=0.1)
+    spenergy.set_ylabel('Energy [TeV]')
+    spenergy.set_ylim(0, 7)
 
-# Intensity and Energy
-sptotint = plt.subplot(3, 1, 1)
-sptotint.set_ylabel('Total intensity [p+]')
-sptotint.grid('on')
-for beam_n in beams_list:
-    sptotint.plot((bct_bx[beam_n].t_stamps-t_ref)/3600., bct_bx[beam_n].values, '-', color=colstr[beam_n])
+    # Cell heat loads
+    sphlcell = plt.subplot(3, 1, 2, sharex=sptotint)
+    sphlcell.set_ylabel('Heat load [W]')
+    sphlcell.grid('on')
 
-spenergy = sptotint.twinx()
-spenergy.plot((energy.t_stamps-t_ref)/3600., energy.energy/1e3, c='black', lw=2.)  # alpha=0.1)
-spenergy.set_ylabel('Energy [TeV]')
-spenergy.set_ylim(0, 7)
+    # Quad heat loads
+    sphlquad = plt.subplot(3, 1, 3, sharex=sptotint)
+    sphlquad.grid('on')
+    sphlquad.set_ylabel('Heat load [W]')
 
-# Cell heat loads
-sphlcell = plt.subplot(3, 1, 2, sharex=sptotint)
-sphlcell.set_ylabel('Heat load [W]')
-sphlcell.grid('on')
+    # Heat Loads Arcs
+    arc_ctr, quad_ctr = 0, 0
+    for key in arc_keys_list + [model_key] + quad_keys_list:
+        output_key = get_output_key(key)
+        if output_key[0] == 'Q':
+            sp = sphlquad
+            color = colorprog(quad_ctr, len(quad_keys_list))
+            quad_ctr += 1
+        else:
+            sp = sphlcell
+            color = colorprog(arc_ctr, len(arc_keys_list)+1)
+            arc_ctr += 1
+        yy_time = (heatloads.timber_variables[key].t_stamps-t_ref)/3600.
+        ones = np.ones_like(yy_time)
+        
+        sp.plot(yy_time, heatloads.timber_variables[key].values, '-', lw=2., label=output_key, color=color)
+        sp.plot(yy_time, this_hl_dict[output_key]['Heat_load']*ones, '--', lw=1, color=color)
 
-# Quad heat loads
-sphlquad = plt.subplot(3, 1, 3, sharex=sptotint)
-sphlquad.grid('on')
-sphlquad.set_ylabel('Heat load [W]')
+    sphlquad.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
+    sphlcell.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
 
-# Heat Loads Arcs
-arc_ctr, quad_ctr = 0, 0
-for key in arc_keys_list + [model_key] + quad_keys_list:
-    output_key = get_output_key(key)
-    if output_key[0] == 'Q':
-        sp = sphlquad
-        color = colorprog(quad_ctr, len(quad_keys_list))
-        quad_ctr += 1
-    else:
-        sp = sphlcell
-        color = colorprog(arc_ctr, len(arc_keys_list)+1)
-        arc_ctr += 1
-    yy_time = (heatloads.timber_variables[key].t_stamps-t_ref)/3600.
-    ones = np.ones_like(yy_time)
-    
-    sp.plot(yy_time, heatloads.timber_variables[key].values, '-', lw=2., label=output_key, color=color)
-    sp.plot(yy_time, this_hl_dict[output_key]['Heat_load']*ones, '--', lw=1, color=color)
+    # Vertical line to indicate time_of_interest
+    for sp in [sphlcell, spenergy, sphlquad]:
+        sp.axvline(time_of_interest, color='black')
+        sp.axvline(offset_time_hrs_begin, color='black')
+        sp.axvline(offset_time_hrs_end, color='black')
+        for xx in [time_of_interest - avg_period, time_of_interest + avg_period]:
+            sp.axvline(xx, ls='--', color='black')
 
-sphlquad.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
-sphlcell.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
-
-# Vertical line to indicate time_of_interest
-for sp in [sphlcell, spenergy, sphlquad]:
-    sp.axvline(time_of_interest, color='black')
-    sp.axvline(offset_time_hrs_begin, color='black')
-    sp.axvline(offset_time_hrs_end, color='black')
-    for xx in [time_of_interest - avg_period, time_of_interest + avg_period]:
-        sp.axvline(xx, ls='--', color='black')
-
-plt.show()
+    plt.show()
