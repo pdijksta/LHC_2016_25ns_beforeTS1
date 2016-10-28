@@ -53,6 +53,7 @@ parser.add_argument('-f', help='Overwrite heat loads at the pickle if the entry 
 parser.add_argument('-n', help='No plot will be shown.', action='store_false')
 parser.add_argument('-o', metavar=('T1', 'T2'), nargs=2, type=float, default=[default_offset_period_begin, default_offset_period_end], help='The time in hours this program uses to calculate an offset.\nDefault: %.2f - %.2f' % (default_offset_period_begin, default_offset_period_end))
 parser.add_argument('-c', help='Show contribution from different devices', action='store_true')
+parser.add_argument('-r', help='Remove the offset in plots', action='store_true')
 
 args = parser.parse_args()
 avg_period = args.a
@@ -62,6 +63,7 @@ store_pickle = args.p or args.f
 overwrite_pickle = args.f
 show_plot = args.n or args.c
 show_heatload_contributions = args.c
+remove_offset = args.r
 [offset_time_hrs_begin, offset_time_hrs_end] = args.o
 
 time_of_interest_arr = [float(time_of_interest_str) for time_of_interest_str in time_of_interest_str_arr]
@@ -98,7 +100,6 @@ all_keys = arc_keys_list + quad_keys_list
 with open('fills_and_bmodes.pkl', 'rb') as fid:
     dict_fill_bmodes = cPickle.load(fid)
 
-# Saves time when repeatedly running from ipython
 fill_dict = {}
 fill_dict.update(tm.parse_timber_file('./fill_basic_data_csvs/basic_data_fill_%d.csv' % filln, verbose=False))
 fill_dict.update(tm.parse_timber_file('./fill_heatload_data_csvs/heatloads_fill_%d.csv' % filln, verbose=False))
@@ -114,6 +115,7 @@ tref_string = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime(t_ref))
 
 heatloads = SetOfHomogeneousNumericVariables(variable_list=all_keys, timber_variables=fill_dict)
 
+# Functions to fill the dict
 def get_output_key(input_key):
     """ Map keys for output dictionary. """
     if input_key in arc_keys_list:
@@ -142,15 +144,15 @@ def get_heat_loads(key):
     avg_heatload = []
     avg_heatload_sigma = []
     avg_offset = []
+
+    offset_avg_period = (offset_time_hrs_end - offset_time_hrs_begin)/2
+    offset_time = offset_time_hrs_begin + offset_avg_period
+    offset_cut = cut_arrays(time_heatload, offset_time, avg_period=offset_avg_period)
+
     for time_of_interest in time_of_interest_arr:
         time_heatload_cut = cut_arrays(time_heatload, time_of_interest)
         avg_heatload.append(np.mean(time_heatload_cut))
         avg_heatload_sigma.append(np.std(time_heatload_cut))
-        
-        offset_avg_period = (offset_time_hrs_end - offset_time_hrs_begin)/2
-        offset_time = offset_time_hrs_begin + offset_avg_period
-        
-        offset_cut = cut_arrays(time_heatload, offset_time, avg_period=offset_avg_period)
         avg_offset.append(np.mean(offset_cut))
 
     return [avg_heatload, avg_heatload_sigma, avg_offset]
@@ -169,7 +171,21 @@ def add_to_output_dict(main_key, input_key, avg_heatload, avg_heatload_sigma, of
             'Offset': offset
             }
 
+# Dict for offset only
+offset_dict = {}
 
+# Fill the dict - Arcs and Quads
+for key in arc_keys_list + quad_keys_list:
+    [hl_arr, sigma_arr, offset_arr] = get_heat_loads(key)
+    if remove_offset:
+        offset_dict[key] = offset_arr[0]
+    else:
+        offset_dict[key] = 0.
+    for ctr, time_of_interest in enumerate(time_of_interest_arr):
+        main_key = main_key_dict[time_of_interest]
+        add_to_output_dict(main_key, key, hl_arr[ctr], sigma_arr[ctr], offset_arr[ctr])
+
+# Fill the dict - Model
 hli_calculator  = ihl.HeatLoadCalculatorImpedanceLHCArc()
 hlsr_calculator  = srhl.HeatLoadCalculatorSynchrotronRadiationLHCArc()
 
@@ -179,12 +195,6 @@ hl_sr_fill = fc.HeatLoad_calculated_fill(fill_dict, hlsr_calculator)
 imp_data = np.array([(hl_imped_fill.t_stamps-t_ref)/3600, hl_imped_fill.heat_load_calculated_total]).T
 sr_data = np.array([(hl_sr_fill.t_stamps-t_ref)/3600, hl_sr_fill.heat_load_calculated_total]).T
 
-for key in arc_keys_list + quad_keys_list:
-    [hl_arr, sigma_arr, offset_arr] = get_heat_loads(key)
-    for ctr, time_of_interest in enumerate(time_of_interest_arr):
-        main_key = main_key_dict[time_of_interest]
-        add_to_output_dict(main_key, key, hl_arr[ctr], sigma_arr[ctr], offset_arr[ctr])
-    
 for ctr, time_of_interest in enumerate(time_of_interest_arr):
     cut_imp = cut_arrays(imp_data, time_of_interest, avg_period=avg_period)
     cut_sr = cut_arrays(sr_data, time_of_interest, avg_period=avg_period)
@@ -198,9 +208,7 @@ for ctr, time_of_interest in enumerate(time_of_interest_arr):
     add_to_output_dict(main_key, sr_label, avg_sr, sigma_sr, 0)
     add_to_output_dict(main_key, 'Imp+SR', avg_imp+avg_sr, sigma_imp+sigma_sr, 0)
 
-
-    # SAVE PICKLE
-
+# SAVE PICKLE
 if store_pickle:
     print('Storing into pickle.')
     if not os.path.isfile(pickle_name):
@@ -222,17 +230,6 @@ if store_pickle:
     with open(pickle_name, 'w') as hl_dict_file:
         cPickle.dump(heatload_dict, hl_dict_file, protocol=-1)
     
-#    if overwrite_pickle and 'test' in heatload_dict:
-#        print('Deleting old entry.')
-#        del heatload_dict['test']
-#
-#    if main_key not in heatload_dict:
-#        heatload_dict[main_key] = this_hl_dict
-#        with open(pickle_name, 'w') as hl_dict_file:
-#            cPickle.dump(heatload_dict, hl_dict_file, protocol=-1)
-#    else:
-#        print('This entry already exists in the pickle, not storing!!\n')
-
 # PLOTS
 if show_plot:
     plt.close('all')
@@ -280,10 +277,10 @@ if show_plot:
             sp = sphlcell
             color = colorprog(arc_ctr, len(arc_keys_list)+1)
             arc_ctr += 1
-        yy_time = (heatloads.timber_variables[key].t_stamps-t_ref)/3600.
-        ones = np.ones_like(yy_time)
+        xx_time = (heatloads.timber_variables[key].t_stamps-t_ref)/3600.
+        yy_heatloads = heatloads.timber_variables[key].values - offset_dict[key]
         
-        sp.plot(yy_time, heatloads.timber_variables[key].values, '-', lw=2., label=output_key, color=color)
+        sp.plot(xx_time, yy_heatloads, '-', lw=2., label=output_key, color=color)
 
     # Heat loads model
     sphlcell.plot(imp_data[:,0], imp_data[:,1]*HL.magnet_length['special_total'][0], label=imp_label)
@@ -341,7 +338,7 @@ if show_heatload_contributions:
             sr_cell = interp_sr * len_cell
         
         # Quad heat load, not normalized
-        interp_hl = np.interp(quad_time_ref, heatloads.timber_variables[key].t_stamps, heatloads.timber_variables[key].values) - interp_imp * len_quad
+        interp_hl = np.interp(quad_time_ref, heatloads.timber_variables[key].t_stamps-offset_dict[key], heatloads.timber_variables[key].values) - interp_imp * len_quad
         
         summed_hl += interp_hl
         summed_len += len_quad
@@ -372,8 +369,9 @@ if show_heatload_contributions:
         sp2.plot((energy.t_stamps-t_ref)/3600., energy.energy/1e3, c='black', lw=2., ls='--', label='Energy')
 
         # Total
-        yy_time = (heatloads.timber_variables[key].t_stamps-t_ref)/3600.
-        sp.plot(yy_time, heatloads.timber_variables[key].values, label='Total', color='black', lw=3)
+        xx_time = (heatloads.timber_variables[key].t_stamps-t_ref)/3600.
+        yy_all = heatloads.timber_variables[key].values - offset_dict[key]
+        sp.plot(xx_time, yy_all, label='Total', color='black', lw=3)
 
         # Imp
         bottom = np.zeros_like(quad_time_ref_hrs)
@@ -392,12 +390,11 @@ if show_heatload_contributions:
         bottom = np.copy(top)
 
         # Rest
-        bottom_rescaled = np.interp(yy_time, quad_time_ref_hrs, bottom)
+        bottom_rescaled = np.interp(xx_time, quad_time_ref_hrs, bottom)
         # Make sure the rest is not smaller than imp+sr+quad
-        yy_all = np.copy(heatloads.timber_variables[key].values)
         mask_yy_too_small = yy_all < bottom_rescaled
         yy_all[mask_yy_too_small] = bottom_rescaled[mask_yy_too_small]
-        sp.fill_between(yy_time, bottom_rescaled, yy_all, label='Dipoles and drifts', alpha=0.5, color='green')
+        sp.fill_between(xx_time, bottom_rescaled, yy_all, label='Dipoles and drifts', alpha=0.5, color='green')
 
         if sp_ctr == 2:
             sp.legend(bbox_to_anchor=(1.1, 1))
