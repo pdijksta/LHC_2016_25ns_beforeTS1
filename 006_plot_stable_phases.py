@@ -111,7 +111,7 @@ for beam in [1,2]:
     bct = BCT.BCT(fill_dict, beam=beam)
     
 
-    ploss_filepath = 'Stable_phase_data/Power_Loss_Fill_%d_B%d.csv'%(filln, beam)
+    ploss_filepath = '/afs/cern.ch/project/spsecloud/LHC_2016_stable_phase/Power_Loss_Fill_%d_B%d.csv'%(filln, beam)
     if not os.path.isfile(ploss_filepath):
 		print 'No file %s!'%ploss_filepath  
 		ploss_bx = None

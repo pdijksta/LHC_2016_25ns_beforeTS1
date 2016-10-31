@@ -26,10 +26,10 @@ save_fig = False
 #filln_list = [5043, 5045, 5052, 5078]
 filln_list = [5045]
 n_bunches = 2076
-filln_list = [5173]
-n_bunches = 2076
-filln_list = [5219, 5222, 5223]
-n_bunches = 2076
+#~ filln_list = [5173]
+#~ n_bunches = 2076
+#~ filln_list = [5219, 5222, 5223]
+#~ n_bunches = 2076
 #filln_list = [5181]
 #n_bunches = 2076
 # filln_list = [5198]
@@ -161,7 +161,7 @@ for i_fill, filln in enumerate(filln_list):
 
     # Subtract impedance
     hl_impedance = SetOfHomogeneousNumericVariables(variable_list=impedance_keys, timber_variables=fill_dict)
-    hl_impedance_values = hl_impedance.timber_variables[impedance_keys[0]].values + hl_impedance.timber_variables[impedance_keys[1]].values
+    hl_impedance_values = (hl_impedance.timber_variables[impedance_keys[0]].values + hl_impedance.timber_variables[impedance_keys[1]].values)*length_q28/53.
     hl_impedance_time = hl_impedance.timber_variables[impedance_keys[0]].t_stamps
 
     fill_hlcell.plot((hl_impedance_time-t_ref)/3600, hl_impedance_values,

@@ -35,7 +35,7 @@ t_fill_len = t_end_fill - t_start_fill
 t_ref = t_start_fill
 n_traces = 50.
 
-
+bsrt_calib_dict = BSRT_calib.emittance_dictionary()
 
 if len(sys.argv)>1:
 
@@ -94,7 +94,6 @@ pl.close('all')
 for beam in [1,2]:
     energy = Energy.energy(fill_dict, beam=beam)
     bct = BCT.BCT(fill_dict, beam=beam)
-    bsrt_calib_dict = BSRT_calib.emittance_dictionary(filln=filln)
     bsrt  = BSRT.BSRT(fill_dict, beam=beam, calib_dict=bsrt_calib_dict, average_repeated_meas=average_repeated_meas)
     if plot_emittance:
         bsrt.calculate_emittances(energy)
@@ -170,8 +169,8 @@ for beam in [1,2]:
         #sp_bunch.axvline((scan.t_start - t_ref)/3600., color=colorcurr, alpha=0.99)
         #sp_int.axvline((scan.t_start - t_ref)/3600., color=colorcurr, alpha=0.99)
 
-    sp_sigma_h.set_xlim(0, 3500)
-    sp_sigma_v.set_xlim(0, 3500)
+    sp_sigma_h.set_xlim(0, 3300)
+    sp_sigma_v.set_xlim(0, 3300)
     #sp_sigma_h.set_ylim(0, 10)
     #sp_sigma_v.set_ylim(0, 10)
     sp_sigma_h.set_xlabel('25 ns slot')

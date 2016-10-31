@@ -19,7 +19,7 @@ with open(fills_pkl_name, 'rb') as fid:
 
 saved_pkl = csv_folder+'/saved_fills.pkl'
 
-varlist = wuc.vars_temp_warmup_cells()
+varlist = wuc.vars_temp_warmup_cells()+wuc.vars_hl_warmup_cells()
 
 #remove fills in which we are not interested
 filln_list = dict_fill_bmodes.keys()

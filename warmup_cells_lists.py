@@ -19,9 +19,27 @@ dict_temp_warmup_cells={\
 'S78': [u'QRLAA_13R7_TT947.TEMPERATURECALC', u'QRLAA_13L8_TT947.TEMPERATURECALC'], 
 'S67': [u'QRLAA_13R6_TT947.TEMPERATURECALC', u'QRLAA_17L7_TT947.TEMPERATURECALC']}
 
+dict_hl_warmup_cells=\
+{'S23': [u'QRLAA_13R2_QBS947.POSST',  u'QRLAC_31R2_QBS947.POSST',  u'QRLAD_33R2_QBS947.POSST'],
+ 'S34': [u'QRLAA_13R3_QBS947.POSST'],
+ 'S45': [u'QRLAA_13L5_QBS947.POSST', u'QRLAB_15L5_QBS947.POSST'],
+ 'S56': [u'QRLAA_13R5_QBS947.POSST',  u'QRLAA_13L6_QBS947.POSST',  u'QRLAD_33R5_QBS947.POSST'],
+ 'S67': [u'QRLAA_13R6_QBS947.POSST', u'QRLAA_17L7_QBS947.POSST'],
+ 'S78': [u'QRLAA_13R7_QBS947.POSST', u'QRLAA_13L8_QBS947.POSST'],
+ 'S81': [u'QRLAA_13R8_QBS947.POSST', u'QRLAC_31R8_QBS947.POSST']}
+
+
+
 
 def vars_temp_warmup_cells():
     varlist = []
     for kk in dict_temp_warmup_cells.keys():
         varlist+=dict_temp_warmup_cells[kk]
+    return varlist
+
+
+def vars_hl_warmup_cells():
+    varlist = []
+    for kk in dict_temp_warmup_cells.keys():
+        varlist+=dict_hl_warmup_cells[kk]
     return varlist

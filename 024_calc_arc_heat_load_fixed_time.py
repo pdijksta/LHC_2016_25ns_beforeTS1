@@ -125,6 +125,23 @@ def get_output_key(input_key):
     else:
         return input_key
 
+re_quad_15 = re.compile('^Q06[LR][15]$')
+re_quad_28 = re.compile('^Q06[LR][28]$')
+len_q6_28 = HL.magnet_length['Q6s_IR2'][0]
+len_q6_15 = HL.magnet_length['Q6s_IR1'][0]
+len_cell = HL.magnet_length['special_total'][0]
+len_quad_cell = HL.magnet_length['special_HC_Q1'][0]
+
+def get_len_norm_factor(input_key):
+    """ Obtain the quadrupole lengths """
+    output_key = get_output_key(input_key)
+    if re_quad_15.match(output_key):
+        return len_q6_15
+    elif re_quad_28.match(output_key):
+        return len_q6_28
+    else:
+        raise ValueError('Illegal keys: %s, %s' % (input_key, output_key))
+
 def cut_arrays(arr, time_of_interest,avg_period=avg_period):
     """
     Expects two column input: time, values.
@@ -171,7 +188,7 @@ def add_to_output_dict(main_key, input_key, avg_heatload, avg_heatload_sigma, of
             'Offset': offset
             }
 
-# Dict for offset only
+# Dict for offset only, needed for plots
 offset_dict = {}
 
 # Fill the dict - Arcs and Quads
@@ -199,10 +216,10 @@ for ctr, time_of_interest in enumerate(time_of_interest_arr):
     cut_imp = cut_arrays(imp_data, time_of_interest, avg_period=avg_period)
     cut_sr = cut_arrays(sr_data, time_of_interest, avg_period=avg_period)
 
-    avg_imp = np.mean(cut_imp)*HL.magnet_length['special_total'][0]
-    sigma_imp = np.std(cut_imp)*HL.magnet_length['special_total'][0]
-    avg_sr = np.mean(cut_sr)*HL.magnet_length['special_total'][0]
-    sigma_sr = np.std(cut_sr)*HL.magnet_length['special_total'][0]
+    avg_imp = np.mean(cut_imp)*len_cell
+    sigma_imp = np.std(cut_imp)*len_cell
+    avg_sr = np.mean(cut_sr)*len_cell
+    sigma_sr = np.std(cut_sr)*len_cell
     main_key = main_key_dict[time_of_interest]
     add_to_output_dict(main_key, imp_label, avg_imp, sigma_imp, 0)
     add_to_output_dict(main_key, sr_label, avg_sr, sigma_sr, 0)
@@ -239,7 +256,7 @@ if show_plot:
     fig.canvas.set_window_title('LHC Arcs and Q6')
     fig.set_size_inches(15., 8.)
 
-    plt.suptitle(' Fill. %d started on %s\nLHC Arcs and Q6' % (filln, tref_string))
+    plt.suptitle(' Fill. %d started on %s\nLHC Arcs and Q6' % (filln, tref_string), fontsize=25)
     plt.subplots_adjust(right=0.7, wspace=0.30)
 
     # Intensity and Energy
@@ -262,7 +279,7 @@ if show_plot:
     # Quad heat loads
     sphlquad = plt.subplot(3, 1, 3, sharex=sptotint)
     sphlquad.grid('on')
-    sphlquad.set_ylabel('Heat load [W]')
+    sphlquad.set_ylabel('Heat load [W/m]')
     sphlquad.set_xlabel('Time [h]')
 
     # Heat loads arcs and quads
@@ -273,19 +290,21 @@ if show_plot:
             sp = sphlquad
             color = colorprog(quad_ctr, len(quad_keys_list))
             quad_ctr += 1
+            norm_factor = get_len_norm_factor(key)
         else:
             sp = sphlcell
             color = colorprog(arc_ctr, len(arc_keys_list)+1)
             arc_ctr += 1
+            norm_factor = 1.
         xx_time = (heatloads.timber_variables[key].t_stamps-t_ref)/3600.
-        yy_heatloads = heatloads.timber_variables[key].values - offset_dict[key]
+        yy_heatloads = (heatloads.timber_variables[key].values - offset_dict[key]) / norm_factor
         
         sp.plot(xx_time, yy_heatloads, '-', lw=2., label=output_key, color=color)
 
     # Heat loads model
-    sphlcell.plot(imp_data[:,0], imp_data[:,1]*HL.magnet_length['special_total'][0], label=imp_label)
-    sphlcell.plot(sr_data[:,0], sr_data[:,1]*HL.magnet_length['special_total'][0], label=sr_label)
-    sphlcell.plot(imp_data[:,0], (imp_data[:,1]+sr_data[:,1])*HL.magnet_length['special_total'][0], label='Imp+SR')
+    sphlcell.plot(imp_data[:,0], imp_data[:,1]*len_cell, label=imp_label)
+    sphlcell.plot(sr_data[:,0], sr_data[:,1]*len_cell, label=sr_label)
+    sphlcell.plot(imp_data[:,0], (imp_data[:,1]+sr_data[:,1])*len_cell, label='Imp+SR')
 
 
     sphlquad.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
@@ -305,57 +324,44 @@ if show_plot:
 
 if show_heatload_contributions:
 
-    re_quad_15 = re.compile('^Q06[LR][15]$')
-    re_quad_28 = re.compile('^Q06[LR][28]$')
-    len_q6_28 = HL.magnet_length['Q6s_IR2'][0]
-    len_q6_15 = HL.magnet_length['Q6s_IR1'][0]
-    len_cell = HL.magnet_length['special_total'][0]
-    len_quad_cell = HL.magnet_length['special_HC_Q1'][0]
+    # Time stamps of first quad
+    first_key = quad_keys_list[0]
+    quad_time_ref = heatloads.timber_variables[first_key].t_stamps
+    quad_time_ref_hrs = (quad_time_ref - t_ref)/3600.
+    
+    # Impedance per m and cell
+    interp_imp = np.interp(quad_time_ref, hl_imped_fill.t_stamps, hl_imped_fill.heat_load_calculated_total)
+    imp_cell = interp_imp * len_cell
+    
+    # SR per m and cell
+    interp_sr = np.interp(quad_time_ref, hl_sr_fill.t_stamps, hl_sr_fill.heat_load_calculated_total)
+    sr_cell = interp_sr * len_cell
 
     # Create array for average quadrupole heat load
     summed_hl = 0
     summed_len = 0
     for key_ctr, key in enumerate(quad_keys_list):
-        output_key = get_output_key(key)
-        if re_quad_15.match(output_key):
-            len_quad = len_q6_15
-        elif re_quad_28.match(output_key):
-            len_quad = len_q6_28
-        else:
-            raise ValueError('No match for key %s' % output_key)
-
-        if key_ctr == 0:
-            # Time stamps of first quad
-            quad_time_ref = heatloads.timber_variables[key].t_stamps
-            quad_time_ref_hrs = (quad_time_ref - t_ref)/3600.
-            
-            # Impedance per m and cell
-            interp_imp = np.interp(quad_time_ref, hl_imped_fill.t_stamps, hl_imped_fill.heat_load_calculated_total)
-            imp_cell = interp_imp * len_cell
-            
-            # SR per m and cell
-            interp_sr = np.interp(quad_time_ref, hl_sr_fill.t_stamps, hl_sr_fill.heat_load_calculated_total)
-            sr_cell = interp_sr * len_cell
-        
+        len_quad = get_len_norm_factor(key)
         # Quad heat load, not normalized
         interp_hl = np.interp(quad_time_ref, heatloads.timber_variables[key].t_stamps-offset_dict[key], heatloads.timber_variables[key].values) - interp_imp * len_quad
         
         summed_hl += interp_hl
         summed_len += len_quad
     
-    # Average quad heat load per cell
     avg_quad_hl = summed_hl/summed_len * len_quad_cell
 
+    # Plots
     for key_ctr, key in enumerate(arc_keys_list):
         sp_ctr = key_ctr % 4 + 1
 
         if sp_ctr == 1:
             sp = None
             fig = plt.figure()
-            title = 'Detailed arc heat loads'
+            title = 'Detailed arc heat loads for fill %i' % filln
             fig.canvas.set_window_title(title)
             plt.suptitle(title, fontsize=25)
             fig.patch.set_facecolor('w')
+            plt.subplots_adjust(right=0.85, wspace=0.15)
 
         sp = plt.subplot(2,2,sp_ctr, sharex=sp)
         sp.set_xlabel('Time [h]')
@@ -397,7 +403,7 @@ if show_heatload_contributions:
         sp.fill_between(xx_time, bottom_rescaled, yy_all, label='Dipoles and drifts', alpha=0.5, color='green')
 
         if sp_ctr == 2:
-            sp.legend(bbox_to_anchor=(1.1, 1))
+            sp.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
 
 
 if show_plot:

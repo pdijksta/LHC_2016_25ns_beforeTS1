@@ -15,7 +15,7 @@ from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumeri
 from LHCMeasurementTools.LHC_Fills import Fills_Info
 
 
-empty_fills = [4901, 4904, 4969, 5082, 5178, 5192, 5203, 5204]
+empty_fills = [4901, 4904, 4969, 5082, 5178, 5192, 5203, 5204, 5305, 5306, 5307, 5308]
 device_blacklist = [\
 'QRLAA_33L5_QBS947_D4.POSST']
 
@@ -23,8 +23,8 @@ device_blacklist = [\
 
 # Specify plot settings
 t_start_plot = '01-06-2016,08:00' ##
-t_start_plot = '24-07-2016,08:00' ##
-t_end_plot = '15-08-2016,08:00' ##
+t_start_plot = '24-08-2016,08:00' ##
+t_end_plot = '15-09-2016,08:00' ##
 
 time_in = 'datetime'  #'h','d','hourtime','datetime' #
 t_plot_tick_h = 24.
@@ -32,7 +32,7 @@ t_plot_tick_h = 24.
 name_varlists_to_combine = ['AVG_ARC'] ##
 
 normalization_to_length_of = 'magnet' #None,'magnet','cryostat' ##
-mode = 'norm_to_intensity' #'norm_to_intensity','integrated' ##
+
 
 plot_all = True ##
 plot_average = True ##
@@ -85,7 +85,12 @@ if np.any(map(lambda s: (param in s), sys.argv)):
     i_arg = np.where(map(lambda s: (param in s), sys.argv))[0][0]
     arg_temp = sys.argv[i_arg].split('=')[-1]
     name_varlists_to_combine = arg_temp.split(',')
-
+    
+param = 'mode'; mode='temp'
+if np.any(map(lambda s: (param in s), sys.argv)):
+    i_arg = np.where(map(lambda s: (param in s), sys.argv))[0][0]
+    arg_temp = sys.argv[i_arg].split('=')[-1]
+    mode=param
 
 
 
@@ -180,6 +185,7 @@ for varname in hl_varlist:
 
 import warmup_cells_lists as wuc
 temperature_varlist =  wuc.vars_temp_warmup_cells()
+cells_hl_varlist =  wuc.vars_hl_warmup_cells()
 
 # get magnet lengths for normalization_to_length_of
 if normalization_to_length_of == 'magnet':
@@ -269,7 +275,11 @@ for i_fill, filln in enumerate(fill_list):
     
     heatloads = SetOfHomogeneousNumericVariables(variable_list=hl_varlist, timber_variables=fill_dict)
     hl_model = SetOfHomogeneousNumericVariables(variable_list=HL.variable_lists_heatloads['MODEL'], timber_variables=fill_dict)
-    temps_wup_cells = SetOfHomogeneousNumericVariables(variable_list=temperature_varlist, timber_variables=fill_dict)    
+    if mode=='temp':
+        var_bottom = SetOfHomogeneousNumericVariables(variable_list=temperature_varlist, timber_variables=fill_dict)    
+    elif mode=='hl':
+        var_bottom = SetOfHomogeneousNumericVariables(variable_list=cells_hl_varlist, timber_variables=fill_dict)    
+    
     
     # remove offset
     if zero_at is not None:
@@ -301,13 +311,13 @@ for i_fill, filln in enumerate(fill_list):
                        '-', color=colorcurr, lw=2., label=label)
             
     # temperatures
-    for ii, kk in enumerate(temps_wup_cells.variable_list):
+    for ii, kk in enumerate(var_bottom.variable_list):
         if first_fill:
             label = kk.split('_')[1]
         else:
             label=None
-        colorcurr = ms.colorprog(i_prog=ii, Nplots=len(temps_wup_cells.variable_list))  
-        ax3.plot(tc(temps_wup_cells.timber_variables[kk].t_stamps), temps_wup_cells.timber_variables[kk].values,
+        colorcurr = ms.colorprog(i_prog=ii, Nplots=len(var_bottom.variable_list))  
+        ax3.plot(tc(var_bottom.timber_variables[kk].t_stamps), var_bottom.timber_variables[kk].values,
                        '-', color=colorcurr, lw=2., label=label)
                 
     if plot_model and 'AVG_ARC' in name_varlists_to_combine:
@@ -318,8 +328,8 @@ for i_fill, filln in enumerate(fill_list):
             '--', color='grey', lw=2., label=label)
 
     
-    if plot_average:  
-        ax2.plot(tc(hl_ts), hl_aver,'k-', lw=2.)
+    #if plot_average:  
+    #    ax2.plot(tc(hl_ts), hl_aver,'k-', lw=2.)
     
 
 
@@ -357,9 +367,10 @@ ax2.set_ylim(0, None)
 ax2.grid('on')
 
 
-
-ax3.set_ylabel('Temperature BS [K]')
-ax3.legend(bbox_to_anchor=(1.0, 1.05),  loc='upper left', prop={'size':12}, ncol=2)
+if mode=='temp':
+    ax3.set_ylabel('Temperature BS [K]')
+elif mode=='hl':
+    ax3.legend(bbox_to_anchor=(1.0, 1.05),  loc='upper left', prop={'size':12}, ncol=2)
 
 ax3.grid('on')
 

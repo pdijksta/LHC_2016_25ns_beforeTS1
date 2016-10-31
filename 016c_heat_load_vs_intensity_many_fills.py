@@ -21,6 +21,7 @@ flag_fbct = False
 plot_model = True # C
 t_zero = None
 
+
 filln_list = [5043, 5045, 5052, 5073, 5069]#, 5078] 5069
 
 filln_list = [5069, 5071, 5073, 5076, 5080, 5083, 5091]#5072, 5078, 5085
@@ -29,8 +30,14 @@ filln_list = [5069, 5071, 5073, 5076, 5080, 5083, 5091]
 filln_list = [5219, 5222, 5223]#, 5045, 5078]
 #~ filln_list = [5045, 5043, 5052, 5060, 5059, 5068, 5069, 5071, 5073, 5076, 5080, 5083, 5091]
 
-#filln_list = [5043]
-n_bunches = 2076
+# filln_list = [5013, 5017, 5026, 5030, 5219, 5222, 5223]
+# filln_list = [5026, 5219, 5222, 5223]
+#filln_list = [5026, 5219, 5433]
+
+filln_list = [5416, 5340, 5274]
+
+#n_bunches = 2076
+n_bunches = 2040
 
 #~ filln = 5038
 #~ n_bunches = 2041
@@ -264,7 +271,7 @@ spvsint.set_xlabel('Bunch intensity [p+]')
 spvsint.set_ylabel('Heat load from e-cloud [W/hc]')
 
 sp_blen_vs_int.set_xlim(0.6e11, 1.3e11)
-sp_blen_vs_int.set_ylim(0.7, 1.2)
+sp_blen_vs_int.set_ylim(0.7, 1.3)
 sp_blen_vs_int.grid('on')
 sp_blen_vs_int.legend(prop={'size':myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
 sp_blen_vs_int.set_xlabel('Bunch intensity [p+]')

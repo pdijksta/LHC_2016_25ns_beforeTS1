@@ -35,12 +35,13 @@ mode = 'norm_to_intensity' #'norm_to_intensity','integrated' ##
 
 plot_all = True ##
 plot_average = True ##
-plot_model = False ##
+plot_model = True ##
 flag_filln = True ##
 ax_norm_hl_ylim = None#1e-14
 
 zero_at = None
 
+screen_mode = 'CCC' #'small','CCC' ##
 screen_mode = 'CCC' #'small','CCC' ##
 
 
@@ -165,11 +166,6 @@ elif screen_mode == 'CCC':
     figsz = (15,9*5/4.)
 else:
     raise ValueError('Screen mode not recognized!')
-    
-    
-if plot_model:
-    raise ValueError('Logged variables for synchrotron radiation are wrong!')
-    
 
 
 hl_varlist = []

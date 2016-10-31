@@ -4,6 +4,7 @@
 *.csv
 *.pkl
 *_data_csvs*
+*.swp
 LHCMeasurementTools
 PyLHCLumiModel
 bckup_LHCMeasurementTools

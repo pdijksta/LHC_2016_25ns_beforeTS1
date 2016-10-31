@@ -143,6 +143,7 @@ for beam_n in [1, 2]:
             
     for slot_bun in bunch_n_un:
         for interval in dict_intervals.keys():
+            dict_intervals[interval]['filled_slots'] = bunch_n_un
              
             mask_obs = np.logical_and(dict_bunches[slot_bun]['t_stamp']>dict_intervals[interval]['t_start'],
                                        dict_bunches[slot_bun]['t_stamp']<dict_intervals[interval]['t_end'])

@@ -59,7 +59,7 @@ blacklist = [\
 #'S78_QBS_AVG_ARC.POSST']
 ]
 
-beams_list = [2]
+beams_list = [1,2]
 
 
 arc_correction_factor_list = HL.arc_average_correction_factors()
