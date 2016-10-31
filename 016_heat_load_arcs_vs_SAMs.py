@@ -13,6 +13,10 @@ from LHCMeasurementTools.LHC_BQM import filled_buckets, blength
 import LHCMeasurementTools.LHC_Heatloads as HL
 from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumericVariables
 
+import HeatLoadCalculators.impedance_heatload as ihl
+import HeatLoadCalculators.synchrotron_radiation_heatload as srhl 
+import HeatLoadCalculators.FillCalculator as fc
+
 import scipy.io as sio
 
 flag_bunch_length = True
@@ -211,10 +215,20 @@ for ii in xrange(N_figures):
             '-', color=colorcurr, lw=2., label=label)#.split('_QBS')[0])
 
     if plot_model and group_name == 'Arcs':
-        kk = 'LHC.QBS_CALCULATED_ARC.TOTAL'
-        label='Imp.+SR'
-        sphlcell.plot((hl_model.timber_variables[kk].t_stamps-t_ref)/3600., hl_model.timber_variables[kk].values,
+        hli_calculator  = ihl.HeatLoadCalculatorImpedanceLHCArc()
+        hlsr_calculator  = srhl.HeatLoadCalculatorSynchrotronRadiationLHCArc()
+
+        hl_imped_fill = fc.HeatLoad_calculated_fill(fill_dict, hli_calculator)
+        hl_sr_fill = fc.HeatLoad_calculated_fill(fill_dict, hlsr_calculator)
+        label='Imp.+SR\n(recalc.)'
+        sphlcell.plot((hl_imped_fill.t_stamps-t_ref)/3600, 
+            (hl_imped_fill.heat_load_calculated_total+hl_sr_fill.heat_load_calculated_total)*53.4, 
             '--', color='grey', lw=2., label=label)
+        
+        #~ kk = 'LHC.QBS_CALCULATED_ARC.TOTAL'
+        #~ label='Imp.+SR'
+        #~ sphlcell.plot((hl_model.timber_variables[kk].t_stamps-t_ref)/3600., hl_model.timber_variables[kk].values,
+            #~ '--', color='grey', lw=2., label=label)
 
     if flag_average: 
         if t_zero is not None:

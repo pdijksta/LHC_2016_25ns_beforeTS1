@@ -13,6 +13,10 @@ from LHCMeasurementTools.LHC_BQM import filled_buckets, blength
 import LHCMeasurementTools.LHC_Heatloads as HL
 from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumericVariables
 
+import HeatLoadCalculators.impedance_heatload as ihl
+import HeatLoadCalculators.synchrotron_radiation_heatload as srhl 
+import HeatLoadCalculators.FillCalculator as fc
+
 import scipy.io as sio
 
 flag_bunch_length = True
@@ -32,9 +36,9 @@ filln_list = [5219, 5222, 5223]#, 5045, 5078]
 
 # filln_list = [5013, 5017, 5026, 5030, 5219, 5222, 5223]
 # filln_list = [5026, 5219, 5222, 5223]
-#filln_list = [5026, 5219, 5433]
+filln_list = [5026, 5219, 5433]
 
-filln_list = [5416, 5340, 5274]
+#filln_list = [5416, 5340, 5274]
 
 #n_bunches = 2076
 n_bunches = 2040
@@ -195,7 +199,7 @@ for i_fill, filln in enumerate(filln_list):
             hl_var_names.remove(varname)
 
     heatloads = SetOfHomogeneousNumericVariables(variable_list=hl_var_names, timber_variables=dict_hl_data)
-    hl_model = SetOfHomogeneousNumericVariables(variable_list=HL.variable_lists_heatloads['MODEL'], timber_variables=fill_dict)
+    #~ hl_model = SetOfHomogeneousNumericVariables(variable_list=HL.variable_lists_heatloads['MODEL'], timber_variables=fill_dict)
 
     # CORRECT ARC AVERAGES
     if group_name == 'Arcs' and filln < first_correct_filln:
@@ -205,9 +209,15 @@ for i_fill, filln in enumerate(filln_list):
                 hl_corr_factors.append(arc_correction_factor_list[ii])
         heatloads.correct_values(hl_corr_factors)
 
+    # Compute impedance and SR
+    hli_calculator  = ihl.HeatLoadCalculatorImpedanceLHCArc()
+    hlsr_calculator  = srhl.HeatLoadCalculatorSynchrotronRadiationLHCArc()
 
+    hl_imped_fill = fc.HeatLoad_calculated_fill(fill_dict, hli_calculator)
+    hl_sr_fill = fc.HeatLoad_calculated_fill(fill_dict, hlsr_calculator)
 
     if flag_average: hl_ts_curr, hl_aver_curr  = heatloads.mean()
+    
     for ii, kk in enumerate(heatloads.variable_list):
         colorcurr = ms.colorprog(i_prog=ii, Nplots=len(heatloads.variable_list))
         if t_zero is not None:
@@ -223,12 +233,10 @@ for i_fill, filln in enumerate(filln_list):
                 label += st + ' '
         label = label[:-1]
         
-        #~ sphlcell.plot((heatloads.timber_variables[kk].t_stamps-t_ref)/3600, heatloads.timber_variables[kk].values-offset,
-            #~ '-', color=colorcurr, lw=2., label=label)#.split('_QBS')[0])
         
         t_hl = heatloads.timber_variables[kk].t_stamps
         mask_he = t_hl>dict_fill_bmodes[filln]['t_stop_SQUEEZE']
-        subtract = np.interp(t_hl[mask_he], hl_model.timber_variables['LHC.QBS_CALCULATED_ARC.TOTAL'].t_stamps, hl_model.timber_variables['LHC.QBS_CALCULATED_ARC.TOTAL'].values)
+        subtract = np.interp(t_hl[mask_he], hl_imped_fill.t_stamps, (hl_imped_fill.heat_load_calculated_total+hl_sr_fill.heat_load_calculated_total)*53.4)
         
         spvsint.plot(bct_bx[beam_n].interp(t_hl[mask_he])/n_bunches, heatloads.timber_variables[kk].values[mask_he]-offset-subtract,
             '.', color=colorcurr, lw=2., label=label)
