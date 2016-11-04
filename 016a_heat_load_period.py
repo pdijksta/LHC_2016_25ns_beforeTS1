@@ -17,6 +17,7 @@ from LHCMeasurementTools.LHC_Fills import Fills_Info
 
 empty_fills = [4901, 4904, 4969, 5082, 5178, 5192, 5203, 5204, 5275, 5305, 5306, 5307, 5308]
 device_blacklist = [\
+'QRLAA_33L5_QBS947_D3.POSST',\
 'QRLAA_33L5_QBS947_D4.POSST']
 
 
@@ -83,9 +84,6 @@ if np.any(map(lambda s: (param in s), sys.argv)):
     i_arg = np.where(map(lambda s: (param in s), sys.argv))[0][0]
     arg_temp = sys.argv[i_arg].split('=')[-1]
     name_varlists_to_combine = arg_temp.split(',')
-
-
-
 
 
 if screen_mode == 'small':

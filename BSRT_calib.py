@@ -92,28 +92,28 @@ def emittance_dictionary(filln=None):
             e_dict[kk] = {450:{}, 6500:{}}
 
         # Beam 1:
-        e_dict['betaf_h'][450][1] = 204.1
+        e_dict['betaf_h'][450][1] = 204.11
         e_dict['betaf_h'][6500][1] = 200.
-        e_dict['betaf_v'][450][1] = 317.3
+        e_dict['betaf_v'][450][1] = 317.34
         e_dict['betaf_v'][6500][1] = 330.
         e_dict['sigma_corr_h'][450][1] = .53
-        e_dict['sigma_corr_h'][6500][1] = .31
+        e_dict['sigma_corr_h'][6500][1] = .306
         e_dict['sigma_corr_v'][450][1] = .59
-        e_dict['sigma_corr_v'][6500][1] = .31
+        e_dict['sigma_corr_v'][6500][1] = .307
         e_dict['rescale_sigma_h'][450][1] = 1.
         e_dict['rescale_sigma_h'][6500][1] = 1.
         e_dict['rescale_sigma_v'][450][1] = 1.
         e_dict['rescale_sigma_v'][6500][1] = 1.
 
         # Beam 2:
-        e_dict['betaf_h'][450][2] = 200.6
+        e_dict['betaf_h'][450][2] = 200.64
         e_dict['betaf_h'][6500][2] = 200.
-        e_dict['betaf_v'][450][2] = 327.1
+        e_dict['betaf_v'][450][2] = 327.12
         e_dict['betaf_v'][6500][2] = 330.
         e_dict['sigma_corr_h'][450][2] = .48
-        e_dict['sigma_corr_h'][6500][2] = .31
+        e_dict['sigma_corr_h'][6500][2] = .306
         e_dict['sigma_corr_v'][450][2] = .48
-        e_dict['sigma_corr_v'][6500][2] = .26
+        e_dict['sigma_corr_v'][6500][2] = .261
         e_dict['rescale_sigma_h'][450][2] = 1.
         e_dict['rescale_sigma_h'][6500][2] = 1.
         e_dict['rescale_sigma_v'][450][2] = 1.

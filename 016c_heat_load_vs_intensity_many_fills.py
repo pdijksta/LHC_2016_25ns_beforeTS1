@@ -26,25 +26,30 @@ plot_model = True # C
 t_zero = None
 
 
-filln_list = [5043, 5045, 5052, 5073, 5069]#, 5078] 5069
 
-filln_list = [5069, 5071, 5073, 5076, 5080, 5083, 5091]#5072, 5078, 5085
-filln_list = [5069, 5071, 5073, 5076, 5078, 5072, 5080, 5083, 5091]
-filln_list = [5069, 5071, 5073, 5076, 5080, 5083, 5091]
-filln_list = [5219, 5222, 5223]#, 5045, 5078]
+
+#reference fills
+# filln_list = [5026, 5219, 5433]
+# n_bunches = 2040
+
+# BCMS fills (latest part of the year)
+filln_list = [5416, 5340, 5274]
+n_bunches = 2220
+
+#  fills (start of BCMS)
+filln_list = [5076, 5069, 5071, 5073, 5076, 5080, 5083, 5091]
+n_bunches = 2076
+
+
+# filln_list = [5043, 5045, 5052, 5073, 5069]#, 5078] 5069
+
+# #5072, 5078, 5085
+# filln_list = [5069, 5071, 5073, 5076, 5078, 5072, 5080, 5083, 5091]
+# filln_list = [5219, 5222, 5223]#, 5045, 5078]
 #~ filln_list = [5045, 5043, 5052, 5060, 5059, 5068, 5069, 5071, 5073, 5076, 5080, 5083, 5091]
 
 # filln_list = [5013, 5017, 5026, 5030, 5219, 5222, 5223]
 # filln_list = [5026, 5219, 5222, 5223]
-filln_list = [5026, 5219, 5433]
-
-#filln_list = [5416, 5340, 5274]
-
-#n_bunches = 2076
-n_bunches = 2040
-
-#~ filln = 5038
-#~ n_bunches = 2041
 
 
 output_folder = 'plots'
@@ -145,6 +150,7 @@ for i_fill, filln in enumerate(filln_list):
         fbct_bx[beam_n] = FBCT(fill_dict, beam = beam_n)
         bct_bx[beam_n] = BCT(fill_dict, beam = beam_n)
         if flag_bunch_length: blength_bx[beam_n] = blength(fill_dict, beam = beam_n)
+    beam_n=None
 
     dict_hl_data =  fill_dict
 
@@ -236,20 +242,28 @@ for i_fill, filln in enumerate(filln_list):
         
         t_hl = heatloads.timber_variables[kk].t_stamps
         mask_he = t_hl>dict_fill_bmodes[filln]['t_stop_SQUEEZE']
-        subtract = np.interp(t_hl[mask_he], hl_imped_fill.t_stamps, (hl_imped_fill.heat_load_calculated_total+hl_sr_fill.heat_load_calculated_total)*53.4)
-        
-        spvsint.plot(bct_bx[beam_n].interp(t_hl[mask_he])/n_bunches, heatloads.timber_variables[kk].values[mask_he]-offset-subtract,
+        subtract_imped = np.interp(t_hl[mask_he], hl_imped_fill.t_stamps, 
+            (hl_imped_fill.heat_load_calculated_total)*53.4)
+        subtract_SR = np.interp(t_hl[mask_he], hl_imped_fill.t_stamps, (hl_sr_fill.heat_load_calculated_total)*53.4)
+        mask_calc_avail = np.logical_and(subtract_imped>0.1, subtract_SR>0.1)
+
+        binten_hl = (bct_bx[1].interp(t_hl[mask_he])+bct_bx[2].interp(t_hl[mask_he]))/n_bunches/2
+        spvsint.plot(binten_hl[mask_calc_avail], 
+            (heatloads.timber_variables[kk].values[mask_he]-offset-subtract_imped-subtract_SR)[mask_calc_avail],
             '.', color=colorcurr, lw=2., label=label)
         
+        
+
         sector = int(label.split('S')[-1])
         pl.figure(sector)
-        pl.plot(bct_bx[beam_n].interp(t_hl[mask_he])/n_bunches, heatloads.timber_variables[kk].values[mask_he]-offset-subtract,
+        pl.plot(binten_hl[mask_calc_avail], (heatloads.timber_variables[kk].values[mask_he]-offset-subtract_imped-subtract_SR)[mask_calc_avail],
             '.', color=colorfill, lw=2., label=filln)
     
-    t_bl = blength_bx[beam_n].t_stamps
+    t_bl = blength_bx[1].t_stamps
     mask_bl_he = t_bl>dict_fill_bmodes[filln]['t_stop_SQUEEZE']
     
-    sp_blen_vs_int.plot(bct_bx[beam_n].interp(t_bl[mask_bl_he])/n_bunches, blength_bx[beam_n].avblen[mask_bl_he]/1e-9,
+    binten_bl = (bct_bx[1].interp(t_bl[mask_bl_he])+bct_bx[2].interp(t_bl[mask_bl_he]))/n_bunches/2
+    sp_blen_vs_int.plot(binten_bl, blength_bx[1].avblen[mask_bl_he]/1e-9,
             '.', color=colorfill, lw=2., label=filln)
 
     #~ if plot_model and group_name == 'Arcs':

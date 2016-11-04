@@ -38,6 +38,8 @@ n_bunches = 2076
 # n_bunches = 2220
 #~ filln = 5038
 #~ n_bunches = 2041
+# filln_list = [5026, 5219, 5433]
+# n_bunches = 2040
 
 # I do not know what this does
 blacklist = [\
