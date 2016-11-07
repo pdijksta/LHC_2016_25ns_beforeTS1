@@ -1,6 +1,8 @@
 import sys, os
 import pickle
 import time
+import argparse
+
 import pylab as pl
 import numpy as np
 
@@ -17,38 +19,21 @@ import HeatLoadCalculators.impedance_heatload as ihl
 import HeatLoadCalculators.synchrotron_radiation_heatload as srhl 
 import HeatLoadCalculators.FillCalculator as fc
 
-import scipy.io as sio
+parser = argparse.ArgumentParser(description='Plot the heat loads for one LHC fill')
+parser.add_argument('filln', metavar='FILLN', type=int, help='LHC fill number')
+parser.add_argument('--zeroat', metavar='T_0', type=float, help='Calculate offset at this point', default=None)
+parser.add_argument('--noblength', help='Do not show a plot with bunch length vs time.', action='store_true')
+parser.add_argument('--noaverage', help='Do not show an average heat load.', action='store_true')
+parser.add_argument('--fbct', help='Show fbct intensity, too!', action='store_true')
+parser.add_argument('--noplotmodel', help='Do not plot the model heat load', action='store_true')
+args = parser.parse_args()
 
-flag_bunch_length = True
-flag_average = True
-flag_fbct = False
-plot_model = True
-t_zero = None
-
-dictYN = {'Y':True, 'N':False, 'y':True, 'n':False}
-
-if len(sys.argv)>1:
-    filln = int(sys.argv[1])
-    
-    if np.any(map(lambda s: ('--zeroat'in s), sys.argv)):
-        i_arg = np.where(map(lambda s: ('--zeroat'in s), sys.argv))[0]
-        arg_temp = sys.argv[i_arg]
-        t_zero = float(arg_temp.split('=')[-1])
-     
-    if '--noblength' in sys.argv:
-		flag_bunch_length = False
-		
-    if '--noaverage' in sys.argv:
-		flag_average = False
-	
-    if '--fbct' in sys.argv:
-		flag_fbct = True
-    
-    param = 'plotmodel'
-    if np.any(map(lambda s: (param in s), sys.argv)):
-        i_arg = np.where(map(lambda s: (param in s), sys.argv))[0][0]
-        arg_temp = sys.argv[i_arg].split('=')[-1]
-        plot_model = dictYN[arg_temp]
+filln = args.filln 
+t_zero = args.zeroat
+flag_bunch_length = not args.noblength
+flag_average = not args.noaverage
+flag_fbct = args.fbct
+plot_model = not args.noplotmodel
 
 print '--> Processing fill %d'%filln
 
@@ -133,9 +118,10 @@ for beam_n in beams_list:
 
     fbct_bx[beam_n] = FBCT(fill_dict, beam = beam_n)
     bct_bx[beam_n] = BCT(fill_dict, beam = beam_n)
-    if flag_bunch_length: blength_bx[beam_n] = blength(fill_dict, beam = beam_n)
-
-dict_hl_data =  fill_dict
+    if flag_bunch_length: 
+        blength_bx[beam_n] = blength(fill_dict, beam = beam_n)
+    else:
+        blength_bx = None
 
 group_names = dict_hl_groups.keys()
 
@@ -149,7 +135,8 @@ for ii in xrange(N_figures):
     
     sptotint = pl.subplot(3,1,1, sharex=sp1)
     sp1 = sptotint
-    if flag_bunch_length: spavbl = pl.subplot(3,1,3, sharex=sp1)
+    if flag_bunch_length:
+        spavbl = pl.subplot(3,1,3, sharex=sp1)
     sphlcell = pl.subplot(3,1,2, sharex=sp1)
     spenergy = sptotint.twinx()
 
@@ -182,7 +169,7 @@ for ii in xrange(N_figures):
         if varname in blacklist:
             hl_var_names.remove(varname)
 
-    heatloads = SetOfHomogeneousNumericVariables(variable_list=hl_var_names, timber_variables=dict_hl_data)
+    heatloads = SetOfHomogeneousNumericVariables(variable_list=hl_var_names, timber_variables=fill_dict)
     #hl_model = SetOfHomogeneousNumericVariables(variable_list=HL.variable_lists_heatloads['MODEL'], timber_variables=fill_dict)
 
     # CORRECT ARC AVERAGES
@@ -195,7 +182,8 @@ for ii in xrange(N_figures):
 
 
 
-    if flag_average: hl_ts_curr, hl_aver_curr  = heatloads.mean()
+    if flag_average:
+        hl_ts_curr, hl_aver_curr  = heatloads.mean()
     for ii, kk in enumerate(heatloads.variable_list):
         colorcurr = ms.colorprog(i_prog=ii, Nplots=len(heatloads.variable_list))
         if t_zero is not None:
@@ -218,11 +206,11 @@ for ii in xrange(N_figures):
         hli_calculator  = ihl.HeatLoadCalculatorImpedanceLHCArc()
         hlsr_calculator  = srhl.HeatLoadCalculatorSynchrotronRadiationLHCArc()
 
-        hl_imped_fill = fc.HeatLoad_calculated_fill(fill_dict, hli_calculator)
-        hl_sr_fill = fc.HeatLoad_calculated_fill(fill_dict, hlsr_calculator)
+        hl_imped_fill = fc.HeatLoad_calculated_fill(fill_dict, hli_calculator, bct_dict=bct_bx, fbct_dict=fbct_bx, blength_dict=blength_bx)
+        hl_sr_fill = fc.HeatLoad_calculated_fill(fill_dict, hlsr_calculator, bct_dict=bct_bx, fbct_dict=fbct_bx, blength_dict=blength_bx)
         label='Imp.+SR\n(recalc.)'
         sphlcell.plot((hl_imped_fill.t_stamps-t_ref)/3600, 
-            (hl_imped_fill.heat_load_calculated_total+hl_sr_fill.heat_load_calculated_total)*53.4, 
+            (hl_imped_fill.heat_load_calculated_total+hl_sr_fill.heat_load_calculated_total)*HL.magnet_length['AVG_ARC'][0], 
             '--', color='grey', lw=2., label=label)
         
         #~ kk = 'LHC.QBS_CALCULATED_ARC.TOTAL'
@@ -235,7 +223,7 @@ for ii in xrange(N_figures):
             offset = np.interp(t_ref+t_zero*3600, hl_ts_curr, hl_aver_curr)
         else:
             offset=0.
-        sphlcell.plot((hl_ts_curr-t_ref)/3600., hl_aver_curr-offset, 'k', lw=2)
+        sphlcell.plot((hl_ts_curr-t_ref)/3600., hl_aver_curr-offset, 'k', lw=2, label='Average')
     sphlcell.set_ylabel('Heat load [W]')
 
 
