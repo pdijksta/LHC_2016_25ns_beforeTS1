@@ -18,12 +18,12 @@ import HeatLoadCalculators.impedance_heatload as hli
 import HeatLoadCalculators.synchrotron_radiation_heatload as hls
 
 # Config
-pkl_file_name = './large_heat_load_dict.pkl'
+pkl_file_name = './large_heat_load_dict2.pkl'
 fills_bmodes_file = './fills_and_bmodes.pkl'
 filling_pattern_csv = './fill_basic_data_csvs/injection_scheme.csv'
 subtract_offset = True
 
-if os.path.isfile(pkl_file_name):
+if __name__ is '__main__' and os.path.isfile(pkl_file_name):
     raise ValueError('Pkl file already exists!')
 
 ##
@@ -32,8 +32,22 @@ filling_pattern_raw = tm.parse_timber_file(filling_pattern_csv, verbose=False)
 key = filling_pattern_raw.keys()[0]
 filling_pattern_ob = filling_pattern_raw[key]
 
-# TODO: proper keys for the output dictionary
+# Proper keys for the output dictionary
 re_arc = re.compile('(S\d\d)_QBS_AVG_ARC.POSST')
+re_quad = re.compile('(Q)RL\w\w_0(\d[LR]\d)_QBS\d{3}.POSST')
+re_special = re.compile('(Q)RLAA_(\d{2}\w\d)_QBS\d{3}(_\w\w)?.POSST')
+re_list = [re_arc, re_quad, re_special]
+
+def output_key(input_key, verbose=False):
+    for regex in re_list:
+        info = re.search(regex, input_key)
+        if info is not None:
+            if verbose:
+                print(var, ''.join(info.groups()))
+            return ''.join(info.groups())
+    else:
+        raise ValueError('No match for %s' % var)
+
 
 # Heat load groups
 groups_dict = hl.groups_dict()
@@ -79,172 +93,174 @@ for var in all_heat_load_vars:
 var_list = [fills, filling_pattern, bpi, n_bunches_list, energy_list]
 nested_var_list = [hl_time_points, b1_int, b2_int, tot_int]
 
-# Main loop
-for ff, filln in enumerate(fills_0):
-    t_stop_squeeze = fills_and_bmodes[filln]['t_stop_SQUEEZE']
-    if t_stop_squeeze == -1:
-        print('Fill %i did not reach the end of squeeze' % filln)
-    else:
-        try:
-            fill_dict = {}
-            fill_dict.update(tm.parse_timber_file('fill_basic_data_csvs/basic_data_fill_%d.csv'%filln, verbose=False))
-            fill_dict.update(tm.parse_timber_file('fill_heatload_data_csvs/heatloads_fill_%d.csv'%filln, verbose=False))
-            fill_dict.update(tm.parse_timber_file('fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv'%filln, verbose=False))
-        except IOError as e:
-            print('Error %s for fill %i!, Skipping this fill!' % (e,filln))
-            continue
+if __name__ is '__main__':
+    # Main loop
+    for ff, filln in enumerate(fills_0):
+        t_stop_squeeze = fills_and_bmodes[filln]['t_stop_SQUEEZE']
+        if t_stop_squeeze == -1:
+            print('Fill %i did not reach the end of squeeze' % filln)
         else:
-            print('Fill %i is being processed' % filln)
-
-        # Fill Number
-        fills.append(filln)
-
-        # Filling pattern and bpi
-        pattern = filling_pattern_ob.nearest_older_sample(t_stop_squeeze)[0]
-        filling_pattern.append(pattern)
-        bpi_info = re.search(re_bpi, pattern)
-        if bpi_info is not None:
-            bpi.append(int(bpi_info.group(1)))
-        else:
-            bpi.append(-1)
-
-
-        # Actual numbers of bunches from BQM
-        filled_buckets_1 = filled_buckets(fill_dict, beam=1)
-        filled_buckets_2 = filled_buckets(fill_dict, beam=2)
-        n_bunches_1 = float(max(filled_buckets_1.Nbun))
-        n_bunches_2 = float(max(filled_buckets_2.Nbun))
-        n_bunches = max(n_bunches_1, n_bunches_2)
-        n_bunches_list.append(n_bunches)
-        if n_bunches_1 != n_bunches_2:
-            print('Fill %i: N bunches for beam 1: %i, for beam 2: %i, choosing %i' % (filln, n_bunches_1, n_bunches_2, n_bunches))
-
-        # get time points
-        time_points = []
-        t_start_ramp = fills_and_bmodes[filln]['t_start_RAMP']
-        time_points.append(t_start_ramp)
-
-        end_time = fills_and_bmodes[filln]['t_endfill']
-        t = t_stop_squeeze
-        while t < end_time:
-            time_points.append(t)
-            t += 3600
-        hl_time_points.append(time_points)
-
-        # intensity
-        this_tot_int = []
-        this_b1_int = []
-        this_b2_int = []
-        bct_bx = {}
-        for beam_n in (1,2):
-            bct_bx[beam_n] = BCT(fill_dict, beam=beam_n)
-        for tt in time_points:
-            int_b1 = float(bct_bx[1].nearest_older_sample(tt))
-            int_b2 = float(bct_bx[2].nearest_older_sample(tt))
-            this_tot_int.append(int_b1+int_b2)
-            this_b1_int.append(int_b1)
-            this_b2_int.append(int_b2)
-        b1_int.append(this_b1_int)
-        b2_int.append(this_b2_int)
-        tot_int.append(this_tot_int)
-
-        # energy
-        en_ob = energy(fill_dict, beam=1)
-        fill_energy = en_ob.nearest_older_sample(t_stop_squeeze)*1e9
-        energy_list.append(fill_energy)
-
-        # bunch length
-        blength_bx = {}
-        for beam_n in (1,2):
-            blength_bx[beam_n] = blength(fill_dict, beam=beam_n)
-
-        this_b1_blen_avg = []
-        this_b1_blen_sig = []
-        this_b2_blen_avg = []
-        this_b2_blen_sig = []
-        this_blen_avg = []
-        this_blen_sig = []
-        for tt in time_points:
-            all_blen_1 = blength_bx[1].nearest_older_sample(tt)
-            all_blen_2 = blength_bx[2].nearest_older_sample(tt)
-            avg_1 = np.mean(all_blen_1)
-            sig_1 = np.std(all_blen_1)
-            avg_2 = np.mean(all_blen_2)
-            sig_2 = np.std(all_blen_2)
-            this_b1_blen_avg.append(avg_1)
-            this_b2_blen_avg.append(avg_2)
-            this_b1_blen_sig.append(sig_1)
-            this_b2_blen_sig.append(sig_2)
-            this_blen_avg.append(np.mean([avg_1, avg_2]))
-            this_blen_sig.append(np.sqrt(0.5*(sig_1**2 + sig_2**2)))
-        glob = globals()
-        for key in blen_dict:
-            blen_dict[key].append(glob['this_'+key])
-
-        # Imp / SR
-        this_imp = []
-        this_sr = []
-        for ii,tt in enumerate(time_points):
-            int_b1 = this_b1_int[ii]
-            blen_b1 = this_b1_blen_avg[ii]/4.
-            int_b2 = this_b2_int[ii]
-            blen_b2 = this_b2_blen_avg[ii]/4.
-            # Blength measurements might not always work
-            if blen_b1 == 0. or blen_b2 == 0.:
-                break
-
-            imp_b1 = imp_calc.calculate_P_Wm(int_b1/n_bunches, blen_b1, fill_energy, n_bunches)
-            imp_b2 = imp_calc.calculate_P_Wm(int_b2/n_bunches, blen_b2, fill_energy, n_bunches)
-            this_imp.append(imp_b1+imp_b2)
-            sr1 = sr_calc.calculate_P_Wm(int_b1/n_bunches, blen_b1, fill_energy, n_bunches)
-            sr2 = sr_calc.calculate_P_Wm(int_b2/n_bunches, blen_b2, fill_energy, n_bunches)
-            this_sr.append(sr1+sr2)
-        all_hl_lists_ob.impedance.append(this_imp)
-        all_hl_lists_ob.synchRad.append(this_sr)
-
-        # Heat loads
-        heatloads = SetOfHomogeneousNumericVariables(all_heat_load_vars, fill_dict)
-        for var in all_heat_load_vars:
-            hl_ob = heatloads.timber_variables[var]
-            hl_list = []
-            if subtract_offset:
-                t_begin_inj = fills_and_bmodes[filln]['t_start_INJPROT']
-                if t_begin_inj == -1:
-                    print('Warning: Offset for fill %i could not be calculated as t_start_INJPROT is not in the fills and bmodes file!' % filln)
-                    offset = 0.
-                else:
-                    offset = hl_ob.calc_avg(t_begin_inj, t_begin_inj+600)
+            try:
+                fill_dict = {}
+                fill_dict.update(tm.parse_timber_file('fill_basic_data_csvs/basic_data_fill_%d.csv'%filln, verbose=False))
+                fill_dict.update(tm.parse_timber_file('fill_heatload_data_csvs/heatloads_fill_%d.csv'%filln, verbose=False))
+                fill_dict.update(tm.parse_timber_file('fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv'%filln, verbose=False))
+            except IOError as e:
+                print('Error %s for fill %i!, Skipping this fill!' % (e,filln))
+                continue
             else:
-                offset = 0.
+                print('Fill %i is being processed' % filln)
+
+            # Fill Number
+            fills.append(filln)
+
+            # Filling pattern and bpi
+            pattern = filling_pattern_ob.nearest_older_sample(t_stop_squeeze)[0]
+            filling_pattern.append(pattern)
+            bpi_info = re.search(re_bpi, pattern)
+            if bpi_info is not None:
+                bpi.append(int(bpi_info.group(1)))
+            else:
+                bpi.append(-1)
+
+
+            # Actual numbers of bunches from BQM
+            filled_buckets_1 = filled_buckets(fill_dict, beam=1)
+            filled_buckets_2 = filled_buckets(fill_dict, beam=2)
+            n_bunches_1 = float(max(filled_buckets_1.Nbun))
+            n_bunches_2 = float(max(filled_buckets_2.Nbun))
+            n_bunches = max(n_bunches_1, n_bunches_2)
+            n_bunches_list.append(n_bunches)
+            if n_bunches_1 != n_bunches_2:
+                print('Fill %i: N bunches for beam 1: %i, for beam 2: %i, choosing %i' % (filln, n_bunches_1, n_bunches_2, n_bunches))
+
+            # get time points
+            time_points = []
+            t_start_ramp = fills_and_bmodes[filln]['t_start_RAMP']
+            time_points.append(t_start_ramp)
+
+            end_time = fills_and_bmodes[filln]['t_endfill']
+            t = t_stop_squeeze
+            while t < end_time:
+                time_points.append(t)
+                t += 3600
+            hl_time_points.append(time_points)
+
+            # intensity
+            this_tot_int = []
+            this_b1_int = []
+            this_b2_int = []
+            bct_bx = {}
+            for beam_n in (1,2):
+                bct_bx[beam_n] = BCT(fill_dict, beam=beam_n)
             for tt in time_points:
-                hl = hl_ob.nearest_older_sample(tt) - offset
-                hl_list.append(hl)
-            getattr(all_hl_lists_ob, var).append(hl_list)
+                int_b1 = float(bct_bx[1].nearest_older_sample(tt))
+                int_b2 = float(bct_bx[2].nearest_older_sample(tt))
+                this_tot_int.append(int_b1+int_b2)
+                this_b1_int.append(int_b1)
+                this_b2_int.append(int_b2)
+            b1_int.append(this_b1_int)
+            b2_int.append(this_b2_int)
+            tot_int.append(this_tot_int)
 
-ramp_squeeze_lists = []
-for var in nested_var_list:
-    description = var[0]
-    start_ramp_list = [description+'_start_ramp']
-    end_squeeze_list = [description+'_end_squeeze']
-    for sublist in var[1:]:
-        start_ramp_list.append(sublist[0])
-        end_squeeze_list.append(sublist[1])
-    ramp_squeeze_lists += [start_ramp_list, end_squeeze_list]
+            # energy
+            en_ob = energy(fill_dict, beam=1)
+            fill_energy = en_ob.nearest_older_sample(t_stop_squeeze)*1e9
+            energy_list.append(fill_energy)
 
-# populate output dict
-output_dict = {}
-for key in all_hl_lists_ob.__dict__:
-    member = getattr(all_hl_lists_ob, key)
-    description = member.pop(0)
-    output_dict[description] = member
-for ls in var_list + nested_var_list + ramp_squeeze_lists:
-    description = ls.pop(0)
-    output_dict[description] = ls
+            # bunch length
+            blength_bx = {}
+            for beam_n in (1,2):
+                blength_bx[beam_n] = blength(fill_dict, beam=beam_n)
+
+            this_b1_blen_avg = []
+            this_b1_blen_sig = []
+            this_b2_blen_avg = []
+            this_b2_blen_sig = []
+            this_blen_avg = []
+            this_blen_sig = []
+            for tt in time_points:
+                all_blen_1 = blength_bx[1].nearest_older_sample(tt)
+                all_blen_2 = blength_bx[2].nearest_older_sample(tt)
+                avg_1 = np.mean(all_blen_1)
+                sig_1 = np.std(all_blen_1)
+                avg_2 = np.mean(all_blen_2)
+                sig_2 = np.std(all_blen_2)
+                this_b1_blen_avg.append(avg_1)
+                this_b2_blen_avg.append(avg_2)
+                this_b1_blen_sig.append(sig_1)
+                this_b2_blen_sig.append(sig_2)
+                this_blen_avg.append(np.mean([avg_1, avg_2]))
+                this_blen_sig.append(np.sqrt(0.5*(sig_1**2 + sig_2**2)))
+            glob = globals()
+            for key in blen_dict:
+                blen_dict[key].append(glob['this_'+key])
+
+            # Imp / SR
+            this_imp = []
+            this_sr = []
+            for ii,tt in enumerate(time_points):
+                int_b1 = this_b1_int[ii]
+                blen_b1 = this_b1_blen_avg[ii]/4.
+                int_b2 = this_b2_int[ii]
+                blen_b2 = this_b2_blen_avg[ii]/4.
+                # Blength measurements might not always work
+                if blen_b1 == 0. or blen_b2 == 0.:
+                    break
+
+                imp_b1 = imp_calc.calculate_P_Wm(int_b1/n_bunches, blen_b1, fill_energy, n_bunches)
+                imp_b2 = imp_calc.calculate_P_Wm(int_b2/n_bunches, blen_b2, fill_energy, n_bunches)
+                this_imp.append(imp_b1+imp_b2)
+                sr1 = sr_calc.calculate_P_Wm(int_b1/n_bunches, blen_b1, fill_energy, n_bunches)
+                sr2 = sr_calc.calculate_P_Wm(int_b2/n_bunches, blen_b2, fill_energy, n_bunches)
+                this_sr.append(sr1+sr2)
+            all_hl_lists_ob.impedance.append(this_imp)
+            all_hl_lists_ob.synchRad.append(this_sr)
+
+            # Heat loads
+            heatloads = SetOfHomogeneousNumericVariables(all_heat_load_vars, fill_dict)
+            for var in all_heat_load_vars:
+                hl_ob = heatloads.timber_variables[var]
+                hl_list = []
+                if subtract_offset:
+                    t_begin_inj = fills_and_bmodes[filln]['t_start_INJPROT']
+                    if t_begin_inj == -1:
+                        print('Warning: Offset for fill %i could not be calculated as t_start_INJPROT is not in the fills and bmodes file!' % filln)
+                        offset = 0.
+                    else:
+                        offset = hl_ob.calc_avg(t_begin_inj, t_begin_inj+600)
+                else:
+                    offset = 0.
+                for tt in time_points:
+                    hl = hl_ob.nearest_older_sample(tt) - offset
+                    hl_list.append(hl)
+                getattr(all_hl_lists_ob, var).append(hl_list)
+
+    ramp_squeeze_lists = []
+    for var in nested_var_list:
+        description = var[0]
+        start_ramp_list = [description+'_start_ramp']
+        end_squeeze_list = [description+'_end_squeeze']
+        for sublist in var[1:]:
+            start_ramp_list.append(sublist[0])
+            end_squeeze_list.append(sublist[1])
+        ramp_squeeze_lists += [start_ramp_list, end_squeeze_list]
+
+    # populate output dict
+    output_dict = {}
+    for key in all_hl_lists_ob.__dict__:
+        member = getattr(all_hl_lists_ob, key)
+        description = member.pop(0)
+        out_key = output_key(description)
+        output_dict[out_key] = member
+    for ls in var_list + nested_var_list + ramp_squeeze_lists:
+        description = ls.pop(0)
+        output_dict[description] = ls
 
 
-output_dict.update(blen_dict)
+    output_dict.update(blen_dict)
 
-# Dump this dict
-with open(pkl_file_name, 'w') as f:
-    cPickle.dump(output_dict, f, protocol=-1)
+    # Dump this dict
+    with open(pkl_file_name, 'w') as f:
+        cPickle.dump(output_dict, f, protocol=-1)
 
