@@ -72,15 +72,16 @@ all_hl_lists_ob.synchRad = ['SynchRad']
 for var in all_heat_load_vars:
     setattr(all_hl_lists_ob, var, [var])
 
-var_list = [fills, filling_pattern, bpi, n_bunches_list]
-nested_var_list = [hl_time_points, b1_int, b2_int, tot_int, energy_list]
+var_list = [fills, filling_pattern, bpi, n_bunches_list, energy_list]
+nested_var_list = [hl_time_points, b1_int, b2_int, tot_int]
 
 # Main loop
-for ff, filln in enumerate(fills_0[:50]):
+for ff, filln in enumerate(fills_0[:3]):
     t_stop_squeeze = fills_and_bmodes[filln]['t_stop_SQUEEZE']
     if t_stop_squeeze == -1:
-        print('This fill did not reach the end of squeeze: %i' % filln)
+        print('Fill %i did not reach the end of squeeze' % filln)
     else:
+        print('Fill %i is being processed' % filln)
 
         # Fill Number
         fills.append(filln)
@@ -187,7 +188,7 @@ for ff, filln in enumerate(fills_0[:50]):
             imp_b2 = imp_calc.calculate_P_Wm(int_b2/n_bunches, blen_b2, fill_energy, n_bunches)
             this_imp.append(imp_b1+imp_b2)
             sr1 = sr_calc.calculate_P_Wm(int_b1/n_bunches, blen_b1, fill_energy, n_bunches)
-            sr1 = sr_calc.calculate_P_Wm(int_b2/n_bunches, blen_b2, fill_energy, n_bunches)
+            sr2 = sr_calc.calculate_P_Wm(int_b2/n_bunches, blen_b2, fill_energy, n_bunches)
             this_sr.append(sr1+sr2)
         all_hl_lists_ob.impedance.append(this_imp)
         all_hl_lists_ob.synchRad.append(this_sr)
@@ -211,6 +212,15 @@ for ff, filln in enumerate(fills_0[:50]):
                 hl_list.append(hl)
             getattr(all_hl_lists_ob, var).append(hl_list)
 
+ramp_squeeze_lists = []
+for var in nested_var_list:
+    description = var[0]
+    start_ramp_list = [description+'_start_ramp']
+    end_squeeze_list = [description+'_end_squeeze']
+    for sublist in var[1:]:
+        start_ramp_list.append(sublist[0])
+        end_squeeze_list.append(sublist[1])
+    ramp_squeeze_lists += [start_ramp_list, end_squeeze_list]
 
 # populate output dict
 output_dict = {}
@@ -218,14 +228,10 @@ for key in all_hl_lists_ob.__dict__:
     member = getattr(all_hl_lists_ob, key)
     description = member.pop(0)
     output_dict[description] = member
-for ls in var_list + nested_var_list:
+for ls in var_list + nested_var_list + ramp_squeeze_lists:
     description = ls.pop(0)
     output_dict[description] = ls
 
-# TODO
-nested_ob = Dummy()
-for var in nested_var_list:
-    var_1 = var+
 
 output_dict['b_length'] = blen_dict
 
