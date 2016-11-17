@@ -2,6 +2,7 @@ import sys
 import cPickle
 import re
 import time
+import os
 
 import numpy as np
 
@@ -21,6 +22,9 @@ pkl_file_name = './large_heat_load_dict.pkl'
 fills_bmodes_file = './fills_and_bmodes.pkl'
 filling_pattern_csv = './fill_basic_data_csvs/injection_scheme.csv'
 subtract_offset = True
+
+if os.path.isfile(pkl_file_name):
+    raise ValueError('Pkl file already exists!')
 
 ##
 re_bpi = re.compile('_(\d+)bpi')
@@ -76,12 +80,21 @@ var_list = [fills, filling_pattern, bpi, n_bunches_list, energy_list]
 nested_var_list = [hl_time_points, b1_int, b2_int, tot_int]
 
 # Main loop
-for ff, filln in enumerate(fills_0[:3]):
+for ff, filln in enumerate(fills_0):
     t_stop_squeeze = fills_and_bmodes[filln]['t_stop_SQUEEZE']
     if t_stop_squeeze == -1:
         print('Fill %i did not reach the end of squeeze' % filln)
     else:
-        print('Fill %i is being processed' % filln)
+        try:
+            fill_dict = {}
+            fill_dict.update(tm.parse_timber_file('fill_basic_data_csvs/basic_data_fill_%d.csv'%filln, verbose=False))
+            fill_dict.update(tm.parse_timber_file('fill_heatload_data_csvs/heatloads_fill_%d.csv'%filln, verbose=False))
+            fill_dict.update(tm.parse_timber_file('fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv'%filln, verbose=False))
+        except IOError as e:
+            print('Error %s for fill %i!, Skipping this fill!' % (e,filln))
+            continue
+        else:
+            print('Fill %i is being processed' % filln)
 
         # Fill Number
         fills.append(filln)
@@ -95,10 +108,6 @@ for ff, filln in enumerate(fills_0[:3]):
         else:
             bpi.append(-1)
 
-        fill_dict = {}
-        fill_dict.update(tm.parse_timber_file('fill_basic_data_csvs/basic_data_fill_%d.csv'%filln, verbose=False))
-        fill_dict.update(tm.parse_timber_file('fill_heatload_data_csvs/heatloads_fill_%d.csv'%filln, verbose=False))
-        fill_dict.update(tm.parse_timber_file('fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv'%filln, verbose=False))
 
         # Actual numbers of bunches from BQM
         filled_buckets_1 = filled_buckets(fill_dict, beam=1)
@@ -201,7 +210,7 @@ for ff, filln in enumerate(fills_0[:3]):
             if subtract_offset:
                 t_begin_inj = fills_and_bmodes[filln]['t_start_INJPROT']
                 if t_begin_inj == -1:
-                    print('Warning: Offset could not be calculated as t_start_INJPROT is not in the fills and bmodes file!')
+                    print('Warning: Offset for fill %i could not be calculated as t_start_INJPROT is not in the fills and bmodes file!' % filln)
                     offset = 0.
                 else:
                     offset = hl_ob.calc_avg(t_begin_inj, t_begin_inj+600)
@@ -233,9 +242,9 @@ for ls in var_list + nested_var_list + ramp_squeeze_lists:
     output_dict[description] = ls
 
 
-output_dict['b_length'] = blen_dict
+output_dict.update(blen_dict)
 
-## Dump this dict
-#with open(pkl_file_name, 'w') as f:
-#    cPickle.dump(output_dict, f, protocol=-1)
+# Dump this dict
+with open(pkl_file_name, 'w') as f:
+    cPickle.dump(output_dict, f, protocol=-1)
 
