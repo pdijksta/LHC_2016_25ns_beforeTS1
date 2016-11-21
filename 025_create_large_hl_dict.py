@@ -18,32 +18,33 @@ import HeatLoadCalculators.impedance_heatload as hli
 import HeatLoadCalculators.synchrotron_radiation_heatload as hls
 
 # Config
-filling_pattern_csv = './fill_basic_data_csvs/injection_scheme.csv'
 subtract_offset = True
 hrs_after_sb = 24
+use_2016 = True
+use_2015 = not use_2016
 
-# 2016
-pkl_file_name = './large_heat_load_dict_2016.pkl'
-fills_bmodes_file = './fills_and_bmodes.pkl'
-csv_file_names = ['fill_basic_data_csvs/basic_data_fill_%d.csv',
-        'fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv']
-        #'fill_heatload_data_csvs/heatloads_fill_%d.csv'
-h5_file_names = ['heatloads_fill_h5s/heatloads_all_fill_%i.h5']
-
-## 2015
-#pkl_file_name = './large_heat_load_dict_2015.pkl'
-#spsecloud_folder = '/afs/cern.ch/project/spsecloud/LHC_2015_PhysicsAfterTS2/'
-#
-#fills_bmodes_file = spsecloud_folder + 'fills_and_bmodes.pkl'
-#csv_file_names = [spsecloud_folder + 'fill_csvs/fill_%d.csv', 
-#        spsecloud_folder + 'fill_extra_data_csvs/fill_%d.csv'
-#        ]
-#h5_file_names = [spsecloud_folder + 'heatloads_fill_h5s/heatloads_all_fill_%i.h5']
+if use_2016:
+    pkl_file_name = './large_heat_load_dict_2016.pkl'
+    fills_bmodes_file = './fills_and_bmodes.pkl'
+    csv_file_names = ['fill_basic_data_csvs/basic_data_fill_%d.csv',
+            'fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv']
+            #'fill_heatload_data_csvs/heatloads_fill_%d.csv'
+    h5_file_names = ['heatloads_fill_h5s/heatloads_all_fill_%i.h5']
+    filling_pattern_csv = './fill_basic_data_csvs/injection_scheme.csv'
+elif use_2015:
+    pkl_file_name = './large_heat_load_dict_2015.pkl'
+    spsecloud_folder = '/afs/cern.ch/project/spsecloud/LHC_2015_PhysicsAfterTS2/'
+    fills_bmodes_file = spsecloud_folder + 'fills_and_bmodes.pkl'
+    csv_file_names = [spsecloud_folder + 'fill_csvs/fill_%d.csv', 
+            spsecloud_folder + 'fill_extra_data_csvs/fill_%d.csv']
+    h5_file_names = [spsecloud_folder + 'heatloads_fill_h5s/heatloads_all_fill_%i.h5']
+    filling_pattern_csv = spsecloud_folder + 'injection_scheme_2015.csv'
 
 if os.path.isfile(pkl_file_name):
     raise ValueError('Pkl file already exists!')
 
 ##
+output_dict = {}
 re_bpi = re.compile('_(\d+)bpi')
 filling_pattern_raw = tm.parse_timber_file(filling_pattern_csv, verbose=False)
 key = filling_pattern_raw.keys()[0]
@@ -68,7 +69,6 @@ def output_key(input_key, verbose=False, strict=True):
         else:
             return input_key
 
-output_dict = {}
 def add_to_output_dict(value, keys, zero=False):
     if zero:
         value = 0
@@ -84,16 +84,17 @@ def add_to_output_dict(value, keys, zero=False):
                 this_dict[key] = {}
             this_dict = this_dict[key]
 
-def cast_to_na_recursively(dictionary):
+def cast_to_na_recursively(dictionary, assure_length=None):
     for key in dictionary:
         new_dictionary = dictionary[key]
         if type(new_dictionary) is dict:
-            cast_to_na_recursively(new_dictionary)
+            cast_to_na_recursively(new_dictionary, assure_length)
         elif type(new_dictionary) is list:
-            if not type(new_dictionary[0]) is str:
-                dictionary[key] = np.array(new_dictionary)
+            dictionary[key] = np.array(new_dictionary)
+            if assure_length is not None and len(dictionary[key]) != assure_length:
+                print('Expected length: %i, Actual length: %i for key %s' % (assure_length, len(dictionary[key]), key))
         else:
-            print('Unexpected type in dictionary!')
+            print('Unexpected type in dictionary for key %s' % key)
 
 # Time keys
 time_key_list = ['start_ramp', 'stop_squeeze', 'stable_beams']
@@ -124,10 +125,10 @@ for ff, filln in enumerate(fills_0):
     process_fill = True
     t_stable_beams = fills_and_bmodes[filln]['t_start_STABLE']
     if t_stable_beams == -1:
-        print('Fill %i did not reach stable beams' % filln)
+        print('Fill %i did not reach stable beams.' % filln)
         process_fill = False
+
     if process_fill:
-        print('Fill %i is being processed' % filln)
         try:
             fill_dict = {}
             for f in csv_file_names:
@@ -139,20 +140,24 @@ for ff, filln in enumerate(fills_0):
             process_fill = False
 
     if process_fill:
+        print('Fill %i is being processed.' % filln)
+
         # Allocate objects that are used later
         en_ob = energy(fill_dict, beam=1)
         heatloads = SetOfHomogeneousNumericVariables(all_heat_load_vars, fill_dict)
         if subtract_offset:
+            this_subtract_offset = True
             offset_dict = {}
             t_begin_inj = fills_and_bmodes[filln]['t_start_INJPROT']
             if t_begin_inj == -1:
                 print('Warning: Offset for fill %i could not be calculated as t_start_INJPROT is not in the fills and bmodes file!' % filln)
                 this_subtract_offset = False
             else:
-                this_subtract_offset = True
                 for var in all_heat_load_vars:
                     hl_ob = heatloads.timber_variables[var]
                     offset_dict[var] = hl_ob.calc_avg(t_begin_inj, t_begin_inj+600)
+        else:
+            this_subtract_offset = False
         bct_bx = {}
         blength_bx = {}
         fbct_bx = {}
@@ -284,7 +289,8 @@ for ff, filln in enumerate(fills_0):
                 key = hl_var_dict[var]['key']
                 this_add_to_dict(hl, ['heat_load', key])
 
-cast_to_na_recursively(output_dict)
+n_fills = len(output_dict['filln'])
+cast_to_na_recursively(output_dict, assure_length=n_fills)
 
 # Dump this dict
 with open(pkl_file_name, 'w') as f:
