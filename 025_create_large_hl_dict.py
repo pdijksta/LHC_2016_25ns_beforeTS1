@@ -18,11 +18,14 @@ import HeatLoadCalculators.impedance_heatload as hli
 import HeatLoadCalculators.synchrotron_radiation_heatload as hls
 
 # Config
-pkl_file_name = './large_heat_load_dict2.pkl'
+pkl_file_name = './large_heat_load_dict.pkl'
 fills_bmodes_file = './fills_and_bmodes.pkl'
 filling_pattern_csv = './fill_basic_data_csvs/injection_scheme.csv'
 subtract_offset = True
 hrs_after_squeeze = 24
+csv_file_names = ['fill_basic_data_csvs/basic_data_fill_%d.csv',
+        'fill_heatload_data_csvs/heatloads_fill_%d.csv',
+        'fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv']
 
 if __name__ == '__main__' and os.path.isfile(pkl_file_name):
     raise ValueError('Pkl file already exists!')
@@ -68,6 +71,17 @@ def add_to_output_dict(value, keys, zero=False):
                 this_dict[key] = {}
             this_dict = this_dict[key]
 
+def cast_to_na_recursively(dictionary):
+    for key in dictionary:
+        new_dictionary = dictionary[key]
+        if type(new_dictionary) is dict:
+            cast_to_na_recursively(new_dictionary)
+        elif type(new_dictionary) is list:
+            if not type(new_dictionary[0]) is str:
+                dictionary[key] = np.array(new_dictionary)
+        else:
+            print('Unexpected type in dictionary!')
+
 # Time keys
 time_key_list = ['start_ramp', 'stop_squeeze']
 for ii in xrange(hrs_after_squeeze):
@@ -102,9 +116,8 @@ if __name__ == '__main__':
             print('Fill %i is being processed' % filln)
             try:
                 fill_dict = {}
-                fill_dict.update(tm.parse_timber_file('fill_basic_data_csvs/basic_data_fill_%d.csv'%filln, verbose=False))
-                fill_dict.update(tm.parse_timber_file('fill_heatload_data_csvs/heatloads_fill_%d.csv'%filln, verbose=False))
-                fill_dict.update(tm.parse_timber_file('fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv'%filln, verbose=False))
+                for f in csv_file_names:
+                    fill_dict.update(tm.parse_timber_file(f % filln, verbose=False))
             except IOError as e:
                 print('Fill %i is skipped: %s!' % (filln,e))
                 continue
@@ -189,8 +202,12 @@ if __name__ == '__main__':
                         avg, sig = 0, 0
                     else:
                         all_blen = blength_bx[beam].nearest_older_sample(tt)
-                        avg = np.mean(all_blen)
-                        sig = np.std(all_blen)
+                        mask_nonzero = all_blen != 0
+                        if sum(mask_nonzero) == 0:
+                            avg, sig = 0, 0
+                        else:
+                            avg = np.mean(all_blen[mask_nonzero])
+                            sig = np.std(all_blen[mask_nonzero])
                     this_blength_bx[beam] = avg
                     this_add_to_dict(avg, ['blength', 'b%i' % beam, 'avg'])
                     this_add_to_dict(sig, ['blength', 'b%i' % beam, 'sig'])
@@ -246,6 +263,8 @@ if __name__ == '__main__':
                         hl = 0
                     key = hl_var_dict[var]['key']
                     this_add_to_dict(hl, ['heat_load', key])
+
+cast_to_na_recursively(output_dict)
 
     # Dump this dict
     with open(pkl_file_name, 'w') as f:
