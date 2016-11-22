@@ -20,7 +20,7 @@ import HeatLoadCalculators.synchrotron_radiation_heatload as hls
 # Config
 subtract_offset = True
 hrs_after_sb = 24
-use_2016 = True
+use_2016 = False
 use_2015 = not use_2016
 
 if use_2016:
@@ -31,14 +31,16 @@ if use_2016:
             #'fill_heatload_data_csvs/heatloads_fill_%d.csv'
     h5_file_names = ['heatloads_fill_h5s/heatloads_all_fill_%i.h5']
     filling_pattern_csv = './fill_basic_data_csvs/injection_scheme.csv'
+    base_folder = './'
+    child_folders = ['./']
 elif use_2015:
-    pkl_file_name = './large_heat_load_dict_2015.pkl'
-    spsecloud_folder = '/afs/cern.ch/project/spsecloud/LHC_2015_PhysicsAfterTS2/'
-    fills_bmodes_file = spsecloud_folder + 'fills_and_bmodes.pkl'
-    csv_file_names = [spsecloud_folder + 'fill_csvs/fill_%d.csv', 
-            spsecloud_folder + 'fill_extra_data_csvs/fill_%d.csv']
-    h5_file_names = [spsecloud_folder + 'heatloads_fill_h5s/heatloads_all_fill_%i.h5']
-    filling_pattern_csv = spsecloud_folder + 'injection_scheme_2015.csv'
+    pkl_file_name = './large_heat_load_dict_2015_2.pkl'
+    base_folder = '/afs/cern.ch/project/spsecloud/'
+    child_folders = ['LHC_2015_PhysicsAfterTS2/', 'LHC_2015_PhysicsAfterTS3/', 'LHC_2015_Scrubbing50ns/', 'LHC_2015_IntRamp50ns/', 'LHC_2015_IntRamp25ns/']
+    fills_bmodes_file = base_folder + child_folders[0] + 'fills_and_bmodes.pkl'
+    csv_file_names = ['fill_csvs/fill_%d.csv']
+    h5_file_names = ['heatloads_fill_h5s/heatloads_all_fill_%i.h5']
+    filling_pattern_csv = base_folder + child_folders[0] + 'injection_scheme_2015.csv'
 
 if os.path.isfile(pkl_file_name):
     raise ValueError('Pkl file already exists!')
@@ -76,9 +78,8 @@ def add_to_output_dict(value, keys, zero=False):
     for nn, key in enumerate(keys):
         if nn == len(keys)-1:
             if key not in this_dict:
-                this_dict[key] = [value]
-            else:
-                this_dict[key].append(value)
+                this_dict[key] = []
+            this_dict[key].append(value)
         else:
             if key not in this_dict:
                 this_dict[key] = {}
@@ -122,23 +123,48 @@ sr_calc = hls.HeatLoadCalculatorSynchrotronRadiationLHCArc()
 
 # Main loop
 for ff, filln in enumerate(fills_0):
+
+    # Check if this fill reached stable beams
     process_fill = True
     t_stable_beams = fills_and_bmodes[filln]['t_start_STABLE']
     if t_stable_beams == -1:
         print('Fill %i did not reach stable beams.' % filln)
         process_fill = False
 
+    # Check if all files exist
     if process_fill:
+        this_files = []
+        for f in csv_file_names+h5_file_names:
+            this_file_exist = False
+            f = f % filln
+            for child in child_folders:
+                path = base_folder + child + f
+                if os.path.isfile(path):
+                    this_files.append(path)
+                    this_file_exist = True
+                    break
+            if not this_file_exist:
+                print('Fill %i: %s does not exist' % (filln,f))
+                process_fill = False
+                break
+
+    # Read csv and h5 files
+    if process_fill:
+        fill_dict = {}
         try:
-            fill_dict = {}
-            for f in csv_file_names:
-                fill_dict.update(tm.parse_timber_file(f % filln, verbose=False))
-            for f in h5_file_names:
-                fill_dict.update(tm.timber_variables_from_h5(f % filln))
+            for f in this_files:
+                if '.csv' in f:
+                    fill_dict.update(tm.parse_timber_file(f % filln, verbose=False))
+                elif '.h5' in f:
+                    fill_dict.update(tm.timber_variables_from_h5(f % filln))
+                else:
+                    print('Fill %i: Error: Unknown file type for %s.' % f)
+                    process_fill = False
         except IOError as e:
             print('Fill %i is skipped: %s!' % (filln,e))
             process_fill = False
 
+    # Main part - obtain and store the variables of interest
     if process_fill:
         print('Fill %i is being processed.' % filln)
 
