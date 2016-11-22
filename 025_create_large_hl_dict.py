@@ -45,19 +45,25 @@ elif use_2015:
 if os.path.isfile(pkl_file_name):
     raise ValueError('Pkl file already exists!')
 
-##
-output_dict = {}
+# Filling pattern and bpi
 re_bpi = re.compile('_(\d+)bpi')
 filling_pattern_raw = tm.parse_timber_file(filling_pattern_csv, verbose=False)
 key = filling_pattern_raw.keys()[0]
 filling_pattern_ob = filling_pattern_raw[key]
+
+# Arc correction factors
+arc_correction_factor_list = hl.arc_average_correction_factors()
+arcs_variable_list = hl.average_arcs_variable_list()
+first_correct_filln = 4474 # from 016_
+def correct_hl(heatloads):
+    for ii,arc_variable in enumerate(arcs_variable_list):
+        heatloads.timber_variables[arc_variable].values *= arc_correction_factor_list[ii]
 
 # Proper keys for the output dictionary
 re_arc = re.compile('(S\d\d)_QBS_AVG_ARC.POSST')
 re_quad = re.compile('(Q)RL\w\w_0(\d[LR]\d)_QBS\d{3}.POSST')
 re_special = re.compile('(Q)RLAA_(\d{2}\w\d)_QBS\d{3}(_\w\w)?.POSST')
 re_list = [re_arc, re_quad, re_special]
-
 def output_key(input_key, verbose=False, strict=True):
     for regex in re_list:
         info = re.search(regex, input_key)
@@ -71,6 +77,7 @@ def output_key(input_key, verbose=False, strict=True):
         else:
             return input_key
 
+# Other useful functions
 def add_to_output_dict(value, keys, zero=False):
     if zero:
         value = 0
@@ -122,8 +129,8 @@ imp_calc = hli.HeatLoadCalculatorImpedanceLHCArc()
 sr_calc = hls.HeatLoadCalculatorSynchrotronRadiationLHCArc()
 
 # Main loop
-for ff, filln in enumerate(fills_0):
-
+output_dict = {}
+for filln in fills_0:
     # Check if this fill reached stable beams
     process_fill = True
     t_stable_beams = fills_and_bmodes[filln]['t_start_STABLE']
@@ -131,7 +138,7 @@ for ff, filln in enumerate(fills_0):
         print('Fill %i did not reach stable beams.' % filln)
         process_fill = False
 
-    # Check if all files exist
+    # Check if all files exist and store their paths
     if process_fill:
         this_files = []
         for f in csv_file_names+h5_file_names:
@@ -154,9 +161,9 @@ for ff, filln in enumerate(fills_0):
         try:
             for f in this_files:
                 if '.csv' in f:
-                    fill_dict.update(tm.parse_timber_file(f % filln, verbose=False))
+                    fill_dict.update(tm.parse_timber_file(f, verbose=False))
                 elif '.h5' in f:
-                    fill_dict.update(tm.timber_variables_from_h5(f % filln))
+                    fill_dict.update(tm.timber_variables_from_h5(f))
                 else:
                     print('Fill %i: Error: Unknown file type for %s.' % f)
                     process_fill = False
@@ -191,6 +198,10 @@ for ff, filln in enumerate(fills_0):
             bct_bx[beam_n] = BCT(fill_dict, beam=beam_n)
             blength_bx[beam_n] = blength(fill_dict, beam=beam_n)
             fbct_bx[beam_n] = FBCT(fill_dict, beam=beam_n)
+
+        # Correct Arc Averages
+        if filln < first_correct_filln:
+            correct_hl(heatloads)
 
         # Fill Number
         add_to_output_dict(filln, ['filln'])
@@ -309,7 +320,11 @@ for ff, filln in enumerate(fills_0):
                 else:
                     offset = 0
                 if not zero:
-                    hl = hl_ob.nearest_older_sample(tt) - offset
+                    try:
+                        hl = hl_ob.nearest_older_sample(tt) - offset
+                    except:
+                        print('Fill %i: Warning: No hl data for %s' % (filln,var))
+                        hl = 0
                 else:
                     hl = 0
                 key = hl_var_dict[var]['key']
