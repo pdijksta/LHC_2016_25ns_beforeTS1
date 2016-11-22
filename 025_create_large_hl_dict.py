@@ -3,7 +3,6 @@ import cPickle
 import re
 import time
 import os
-
 import numpy as np
 
 import LHCMeasurementTools.TimberManager as tm
@@ -34,7 +33,7 @@ if use_2016:
     base_folder = './'
     child_folders = ['./']
 elif use_2015:
-    pkl_file_name = './large_heat_load_dict_2015_2.pkl'
+    pkl_file_name = './large_heat_load_dict_2015_3.pkl'
     base_folder = '/afs/cern.ch/project/spsecloud/'
     child_folders = ['LHC_2015_PhysicsAfterTS2/', 'LHC_2015_PhysicsAfterTS3/', 'LHC_2015_Scrubbing50ns/', 'LHC_2015_IntRamp50ns/', 'LHC_2015_IntRamp25ns/']
     fills_bmodes_file = base_folder + child_folders[0] + 'fills_and_bmodes.pkl'
@@ -78,10 +77,10 @@ def output_key(input_key, verbose=False, strict=True):
             return input_key
 
 # Other useful functions
-def add_to_output_dict(value, keys, zero=False):
+def add_to_dict(dictionary, value, keys, zero=False):
     if zero:
         value = 0
-    this_dict = output_dict
+    this_dict = dictionary
     for nn, key in enumerate(keys):
         if nn == len(keys)-1:
             if key not in this_dict:
@@ -175,9 +174,23 @@ for filln in fills_0:
     if process_fill:
         print('Fill %i is being processed.' % filln)
 
-        # Allocate objects that are used later
+        ## Allocate objects that are used later
+
         en_ob = energy(fill_dict, beam=1)
         heatloads = SetOfHomogeneousNumericVariables(all_heat_load_vars, fill_dict)
+        bct_bx = {}
+        blength_bx = {}
+        fbct_bx = {}
+        for beam_n in (1,2):
+            bct_bx[beam_n] = BCT(fill_dict, beam=beam_n)
+            blength_bx[beam_n] = blength(fill_dict, beam=beam_n)
+            fbct_bx[beam_n] = FBCT(fill_dict, beam=beam_n)
+
+        # Correct Arc Averages
+        if filln < first_correct_filln:
+            correct_hl(heatloads)
+
+        # Heat load offset
         if subtract_offset:
             this_subtract_offset = True
             offset_dict = {}
@@ -191,34 +204,25 @@ for filln in fills_0:
                     offset_dict[var] = hl_ob.calc_avg(t_begin_inj, t_begin_inj+600)
         else:
             this_subtract_offset = False
-        bct_bx = {}
-        blength_bx = {}
-        fbct_bx = {}
-        for beam_n in (1,2):
-            bct_bx[beam_n] = BCT(fill_dict, beam=beam_n)
-            blength_bx[beam_n] = blength(fill_dict, beam=beam_n)
-            fbct_bx[beam_n] = FBCT(fill_dict, beam=beam_n)
 
-        # Correct Arc Averages
-        if filln < first_correct_filln:
-            correct_hl(heatloads)
+        ## Populate output dict
 
         # Fill Number
-        add_to_output_dict(filln, ['filln'])
+        add_to_dict(output_dict, filln, ['filln'])
 
         # Filling pattern and bpi
         pattern = filling_pattern_ob.nearest_older_sample(t_stable_beams)[0]
-        add_to_output_dict(pattern, ['filling_pattern'])
+        add_to_dict(output_dict, pattern, ['filling_pattern'])
         bpi_info = re.search(re_bpi, pattern)
         if bpi_info is not None:
             bpi = int(bpi_info.group(1))
         else:
             bpi = -1
-        add_to_output_dict(bpi, ['bpi'])
+        add_to_dict(output_dict, bpi, ['bpi'])
 
         # Energy, only one per fill
         fill_energy = en_ob.nearest_older_sample(t_stable_beams)*1e9
-        add_to_output_dict(fill_energy, ['energy'])
+        add_to_dict(output_dict, fill_energy, ['energy'])
 
         # subloop for time points
         t_start_ramp = fills_and_bmodes[filln]['t_start_RAMP']
@@ -234,11 +238,11 @@ for filln in fills_0:
             # zero controls if calculations for output are performed. 
             # If zero is True, then only 0s are stored in the output_dict
             if tt > end_time:
-                zero=True
+                zero = True
             else:
-                zero=False
+                zero = False
 
-            this_add_to_dict = lambda x, keys: add_to_output_dict(x, [time_key]+keys, zero=zero)
+            this_add_to_dict = lambda x, keys: add_to_dict(output_dict, x, [time_key]+keys, zero=zero)
 
             # t_stamps
             this_add_to_dict(tt, ['t_stamps'])
