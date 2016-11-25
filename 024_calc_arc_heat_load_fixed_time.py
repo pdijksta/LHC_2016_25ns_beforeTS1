@@ -4,8 +4,6 @@
 #   an estimation of the SEY parameter.
 # It has been extended to also list the heat load on the Q6 quadrupoles.
 
-# Written by Philipp Dijkstal, philipp.dijkstal@cern.ch
-
 import sys
 import os
 import cPickle  # it is recommended to use cPickle over pickle
@@ -13,7 +11,6 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 import argparse as arg
-import re
 
 import LHCMeasurementTools.TimberManager as tm
 import LHCMeasurementTools.LHC_Energy as Energy
@@ -21,7 +18,7 @@ import LHCMeasurementTools.mystyle as ms
 from LHCMeasurementTools.LHC_BCT import BCT
 import LHCMeasurementTools.LHC_Heatloads as HL
 from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumericVariables
-from LHCMeasurementTools.mystyle import colorprog
+import LHCMeasurementTools.mystyle as ms
 
 import HeatLoadCalculators.impedance_heatload as ihl
 import HeatLoadCalculators.synchrotron_radiation_heatload as srhl 
@@ -125,22 +122,17 @@ def get_output_key(input_key):
     else:
         return input_key
 
-re_quad_15 = re.compile('^Q06[LR][15]$')
-re_quad_28 = re.compile('^Q06[LR][28]$')
-len_q6_28 = HL.magnet_length['Q6s_IR2'][0]
-len_q6_15 = HL.magnet_length['Q6s_IR1'][0]
 len_cell = HL.magnet_length['special_total'][0]
 len_quad_cell = HL.magnet_length['special_HC_Q1'][0]
 
 def get_len_norm_factor(input_key):
     """ Obtain the quadrupole lengths """
-    output_key = get_output_key(input_key)
-    if re_quad_15.match(output_key):
-        return len_q6_15
-    elif re_quad_28.match(output_key):
-        return len_q6_28
+    for key, value in HL.variable_lists_heatloads.iteritems():
+        if input_key in value:
+            break
     else:
-        raise ValueError('Illegal keys: %s, %s' % (input_key, output_key))
+        raise ValueError('Key %s not found in variable list!' % input_key)
+    return HL.magnet_length[key][0]
 
 def cut_arrays(arr, time_of_interest,avg_period=avg_period):
     """
@@ -248,6 +240,8 @@ if store_pickle:
         cPickle.dump(heatload_dict, hl_dict_file, protocol=-1)
     
 # PLOTS
+ms.mystyle(20)
+
 if show_plot:
     plt.close('all')
     fig = plt.figure()
@@ -288,12 +282,12 @@ if show_plot:
         output_key = get_output_key(key)
         if output_key[0] == 'Q':
             sp = sphlquad
-            color = colorprog(quad_ctr, len(quad_keys_list))
+            color = ms.colorprog(quad_ctr, len(quad_keys_list))
             quad_ctr += 1
             norm_factor = get_len_norm_factor(key)
         else:
             sp = sphlcell
-            color = colorprog(arc_ctr, len(arc_keys_list)+1)
+            color = ms.colorprog(arc_ctr, len(arc_keys_list)+1)
             arc_ctr += 1
             norm_factor = 1.
         xx_time = (heatloads.timber_variables[key].t_stamps-t_ref)/3600.
