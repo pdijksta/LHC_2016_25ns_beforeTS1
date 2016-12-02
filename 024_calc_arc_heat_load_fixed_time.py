@@ -82,7 +82,6 @@ this_hl_dict_options = {\
         }
 
 # LOAD DATA
-dict_hl_groups = {}
 arc_keys_list = HL.variable_lists_heatloads['AVG_ARC']
 quad_keys_list = HL.variable_lists_heatloads['Q6s_IR1'] \
         + HL.variable_lists_heatloads['Q6s_IR5'] \

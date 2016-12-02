@@ -55,8 +55,8 @@ arc_correction_factor_list = hl.arc_average_correction_factors()
 arcs_variable_list = hl.average_arcs_variable_list()
 first_correct_filln = 4474 # from 016_
 def correct_hl(heatloads):
-    for ii,arc_variable in enumerate(arcs_variable_list):
-        heatloads.timber_variables[arc_variable].values *= arc_correction_factor_list[ii]
+    for factor,arc_variable in zip(arc_correction_factor_list, arcs_variable_list):
+        heatloads.timber_variables[arc_variable].values *= factor
 
 # Proper keys for the output dictionary
 re_arc = re.compile('(S\d\d)_QBS_AVG_ARC.POSST')
@@ -76,7 +76,7 @@ def output_key(input_key, verbose=False, strict=True):
         else:
             return input_key
 
-# Other useful functions
+# Other functions
 def add_to_dict(dictionary, value, keys, zero=False):
     if zero:
         value = 0
@@ -175,7 +175,6 @@ for filln in fills_0:
         print('Fill %i is being processed.' % filln)
 
         ## Allocate objects that are used later
-
         en_ob = energy(fill_dict, beam=1)
         heatloads = SetOfHomogeneousNumericVariables(all_heat_load_vars, fill_dict)
         bct_bx = {}
