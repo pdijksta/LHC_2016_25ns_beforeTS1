@@ -30,10 +30,7 @@ default_offset_period_begin = 0.1
 default_offset_period_end = 0.35
 
 first_correct_filln = 4474
-colstr = {}
-colstr[1] = 'b'
-colstr[2] = 'r'
-beams_list = [1, 2]
+beam_colors = {1: 'b', 2: 'r'}
 myfontsz = 16
 ms.mystyle_arial(fontsz=myfontsz, dist_tick_lab=8)
 pickle_name = 'heatload_arcs.pkl'
@@ -43,7 +40,7 @@ parser = arg.ArgumentParser(description='Calculate the heat loads on all arcs at
      'An average is taken. The heat loads should be stable at this point in time.')
 
 parser.add_argument('fill', metavar='FILL', type=int, help='LHC fill number, must be at least %i.' % first_correct_filln)
-parser.add_argument('time', metavar='TIME', type=str, help='Time after the specified FILL number has been set.\n Obtain it with the 016 script.', nargs='+')
+parser.add_argument('time', metavar='TIME', type=str, help='Time after the specified FILL number has been set.\n Obtain it with the 016 script.', nargs='*')
 parser.add_argument('-a', metavar='AVG_PERIOD', type=float, default=default_avg_period, help='The time in hours this program uses to find an average around the specified TIME.\nDefault: +/- %.2f' % default_avg_period)
 parser.add_argument('-p', help='Save heat loads to pickle if entry does not exist.', action='store_true')
 parser.add_argument('-f', help='Overwrite heat loads at the pickle if the entry does already exist.', action='store_true')
@@ -102,7 +99,7 @@ fill_dict.update(tm.parse_timber_file('./fill_heatload_data_csvs/heatloads_fill_
 fill_dict.update(tm.parse_timber_file('./fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv' % filln, verbose=False))
 
 bct_bx = {}
-for beam_n in beams_list:
+for beam_n in beam_colors:
     bct_bx[beam_n] = BCT(fill_dict, beam=beam_n)
 
 energy = Energy.energy(fill_dict, beam=1)
@@ -256,8 +253,8 @@ if show_plot:
     sptotint = plt.subplot(3, 1, 1)
     sptotint.set_ylabel('Total intensity [p+]')
     sptotint.grid('on')
-    for beam_n in beams_list:
-        sptotint.plot((bct_bx[beam_n].t_stamps-t_ref)/3600., bct_bx[beam_n].values, '-', color=colstr[beam_n])
+    for beam_n in beam_colors:
+        sptotint.plot((bct_bx[beam_n].t_stamps-t_ref)/3600., bct_bx[beam_n].values, '-', color=beam_colors[beam_n])
 
     spenergy = sptotint.twinx()
     spenergy.plot((energy.t_stamps-t_ref)/3600., energy.energy/1e3, c='black', lw=2.)  # alpha=0.1)
