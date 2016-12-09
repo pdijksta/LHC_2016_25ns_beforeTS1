@@ -7,8 +7,10 @@ from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumeri
 import LHCMeasurementTools.myfilemanager as mfm
 
 # Config
-fill_sublist = [5222, 5223, 5416]
-dt_seconds = 120
+dt_seconds = 60
+max_fill_hrs = 50
+blacklist = []
+blacklist.append(4948) # 116 hour long fill, exceeds memory
 
 # File names
 variable_files = ['./GasFlowHLCalculator/variable_list.txt', './GasFlowHLCalculator/missing_variables.txt']
@@ -23,12 +25,22 @@ fills_pkl_name = 'fills_and_bmodes.pkl'
 with open(fills_pkl_name, 'rb') as fid:
     dict_fill_bmodes = pickle.load(fid)
 
+fill_sublist = dict_fill_bmodes.keys()
+
 fill_sublist_2 = []
+too_long_fills = []
 for fill in fill_sublist:
     if os.path.isfile(h5_file % fill):
-        print(h5_file % fill + ' already exists!')
+        print('Fill %i: h5 file already exists!' % fill)
+    elif fill in blacklist:
+        print('Fill %i is blacklisted' % fill)
     else:
-        fill_sublist_2.append(fill)
+        fill_hrs = (dict_fill_bmodes[fill]['t_endfill'] - dict_fill_bmodes[fill]['t_startfill'])/3600.
+        if fill_hrs < max_fill_hrs:
+            fill_sublist_2.append(fill)
+        else:
+            too_long_fills.append(fill)
+            print('Fill %i exceeds %i hours and is skipped' % (fill, max_fill_hrs))
 
 varlist = []
 for n in variable_files:
@@ -54,3 +66,5 @@ for filln in fill_sublist_2:
         print('Deleted temporary file %s!' % (temp_file % filln))
     else:
         print('Warning! Something went wrong for file %s!\nKeeping temporary file %s.' % (h5_file % filln, temp_file % filln))
+
+print('The following fills were skipped as they are too long:\n', too_long_fills)
