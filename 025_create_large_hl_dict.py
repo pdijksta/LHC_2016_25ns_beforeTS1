@@ -19,11 +19,11 @@ import HeatLoadCalculators.synchrotron_radiation_heatload as hls
 # Config
 subtract_offset = True
 hrs_after_sb = 24
-use_2016 = False
+use_2016 = True
 use_2015 = not use_2016
 
 if use_2016:
-    pkl_file_name = './large_heat_load_dict_2016.pkl'
+    pkl_file_name = './large_heat_load_dict_2016_2.pkl'
     fills_bmodes_file = './fills_and_bmodes.pkl'
     csv_file_names = ['fill_basic_data_csvs/basic_data_fill_%d.csv',
             'fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv']
@@ -33,7 +33,7 @@ if use_2016:
     base_folder = './'
     child_folders = ['./']
 elif use_2015:
-    pkl_file_name = './large_heat_load_dict_2015_3.pkl'
+    pkl_file_name = './large_heat_load_dict_2015_2.pkl'
     base_folder = '/afs/cern.ch/project/spsecloud/'
     child_folders = ['LHC_2015_PhysicsAfterTS2/', 'LHC_2015_PhysicsAfterTS3/', 'LHC_2015_Scrubbing50ns/', 'LHC_2015_IntRamp50ns/', 'LHC_2015_IntRamp25ns/']
     fills_bmodes_file = base_folder + child_folders[0] + 'fills_and_bmodes.pkl'
@@ -60,16 +60,19 @@ def correct_hl(heatloads):
 
 # Proper keys for the output dictionary
 re_arc = re.compile('(S\d\d)_QBS_AVG_ARC.POSST')
-re_quad = re.compile('(Q)RL\w\w_0(\d[LR]\d)_QBS\d{3}.POSST')
-re_special = re.compile('(Q)RLAA_(\d{2}\w\d)_QBS\d{3}(_\w\w)?.POSST')
+re_quad = re.compile('(Q)RL[^A]\w_0(\d[LR]\d)_QBS\d{3}.POSST')
+re_special = re.compile('QRLAA_(\d{2}\w\d)_QBS\d{3}(_\w\w)?.POSST')
 re_list = [re_arc, re_quad, re_special]
-def output_key(input_key, verbose=False, strict=True):
+
+def output_key(input_key, strict=True):
     for regex in re_list:
         info = re.search(regex, input_key)
         if info is not None:
-            if verbose:
-                print(var, ''.join(info.groups()))
-            return ''.join(info.groups())
+            out = ''
+            for i in info.groups():
+                if i != None:
+                    out += i
+            return out
     else:
         if strict:
             raise ValueError('No match for %s' % var)
