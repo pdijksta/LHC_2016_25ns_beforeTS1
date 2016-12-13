@@ -25,18 +25,15 @@ fills_bmodes_name = './fills_and_bmodes.pkl'
 
 parser = argparse.ArgumentParser()
 parser.add_argument('filln', type=int)
-parser.add_argument('-a', help='Point in time where to calculate the heat load', type=float, default=-1)
+parser.add_argument('-a', help='Point in time where to calculate the heat load', type=float, default=-1.)
 parser.add_argument('-d', help='Plot for all fills in 2015/2016', action='store_true')
+parser.add_argument('-w', help='Histogram bin width', default=20, type=float)
 args = parser.parse_args()
 
 filln = args.filln
 avg_time_hrs = args.a
 show_dict = args.d
-
-if avg_time_hrs == -1:
-    with open(fills_bmodes_name, 'r') as f:
-        fills_and_bmodes = pickle.load(f)
-    avg_time_hrs = (fills_and_bmodes[filln]['t_start_STABLE'] - fills_and_bmodes[filln]['t_startfill'])/3600.
+binwidth = args.w
 
 myfontsz = 16
 ms.mystyle_arial(fontsz=myfontsz, dist_tick_lab=8)
@@ -46,7 +43,8 @@ plt.close('all')
 # Definitions
 keys = ['special_HC_Q1', 'special_HC_D2', 'special_HC_D3', 'special_HC_D4', 'special_total']
 cells = ['13L5', '33L5', '13R4']
-cells_and_new = cells + ['31L2']
+new_cell = '31L2'
+cells_and_new = cells + [new_cell]
 affix_list = ['_Q1', '_D2', '_D3', '_D4']
 beam_colors = {1: 'b', 2: 'r'}
 
@@ -68,6 +66,8 @@ for key in keys:
 
 with open('fills_and_bmodes.pkl', 'rb') as fid:
     dict_fill_bmodes = pickle.load(fid)
+if avg_time_hrs == -1.:
+    avg_time_hrs = (dict_fill_bmodes[filln]['t_start_STABLE'] - dict_fill_bmodes[filln]['t_startfill'])/3600.
 
 fill_dict = {}
 fill_dict.update(tm.parse_timber_file('./fill_basic_data_csvs/basic_data_fill_%d.csv' % filln, verbose=False))
@@ -87,12 +87,16 @@ atd_ob = mfm.h5_to_obj(h5_file)
 QBS_ARC_AVG, arc_list, qbs, qbs_locals = compute_QBS_LHC(atd_ob, use_dP=False, return_qbs=True)
 atd_tt = (atd_ob.timestamps - atd_ob.timestamps[0])/3600.
 atd_mask_mean = np.abs(atd_tt - avg_time_hrs) < avg_pm_hrs
-atd_mean_hl = np.mean(qbs[atd_mask_mean,:], axis=0)
 
-s45_index = arc_list.index('ARC45')
-first, last = arc_index[s45_index,:]
-s45_qbs = qbs[:,first:last+1]
-s45_mean_hl = np.mean(s45_qbs[atd_mask_mean,:], axis=0)
+arc_cells_dict = {}
+for ctr, arc_str in enumerate(arc_list):
+    arc = arc_str[-2:]
+    first, last = arc_index[ctr,:]
+    arc_cells_dict[arc] = np.mean(qbs[atd_mask_mean,first:last+1], axis=0)
+    if ctr == 0:
+        arc_hist_total = arc_cells_dict[arc]
+    else:
+        arc_hist_total = np.append(arc_hist_total, arc_cells_dict[arc])
 
 # Plots
 title = 'Special instrumented cells for fill %i' % filln
@@ -144,23 +148,59 @@ for cell_ctr, cell in enumerate(cells):
     sp.plot(atd_tt, qbs[:,cell_index_dict[cell]], label='Recalc.', ls='-', lw=2., c='orange')
     sp.legend(bbox_to_anchor=(1.3,1), title='HL at %.1f h' % avg_time_hrs, fontsize=myfontsz)
 
-# Histogram
-sp_hist = plt.subplot(2,2,4)
-sp_hist.set_title('Heat loads at %.1f hours' % avg_time_hrs)
-sp_hist.grid('on')
+# Histograms
+def round_to(arr, precision):
+    return np.round(arr/precision)*precision
+
+# 1 for each arc
+#bins = np.arange(round_to(arc_hist_total.min(),binwidth)-binwidth, round_to(arc_hist_total.max(),binwidth)+binwidth*3/2, binwidth)
+bins = np.arange(-50, 251, 300./11.)
+ctr = 0
+for arc, data in arc_cells_dict.iteritems():
+    sp_ctr = ctr % 4 + 1
+    if sp_ctr == 1:
+        fig = plt.figure()
+        title = 'Fill %i: Heat loads at %.1f hours' % (filln, avg_time_hrs)
+        fig.canvas.set_window_title(title)
+        plt.suptitle(title)
+        fig.patch.set_facecolor('w')
+    sp = plt.subplot(2,2,sp_ctr)
+    sp.hist(arc_hist_total, bins=bins, alpha=0.5, color='blue')
+    sp.hist(data, bins=bins, color='green')
+    sp.axvline(np.mean(data), lw=2., color='green')
+    sp.axvline(np.mean(arc_hist_total), lw=2., color='blue')
+    sp.grid('on')
+    sp.set_xlabel('Heat load [W]')
+    sp.set_ylabel('# Half cells')
+    sp.set_title('Arc %s' % arc)
+
+    if arc == '45':
+        colors = ['red', 'orange', 'brown']
+        for cell_ctr, cell in enumerate(cells):
+            mean = np.mean(qbs[atd_mask_mean,cell_index_dict[cell]])
+            sp.axvline(mean, label=cell, color=colors[cell_ctr])
+            sp.legend(bbox_to_anchor=(1.2,1))
+    elif arc == '12':
+        mean = np.mean(qbs[atd_mask_mean,cell_index_dict[new_cell]])
+        sp.axvline(mean, label=new_cell, color='red')
+        sp.legend(bbox_to_anchor=(1.2,1))
+    ctr += 1
+
+# 1 plot for all sectors
+fig = plt.figure()
+fig.canvas.set_window_title(title)
+fig.patch.set_facecolor('w')
+plt.suptitle(title)
+sp_hist = plt.subplot(2,2,1)
 sp_hist.set_xlabel('Heat load [W]')
 sp_hist.set_ylabel('# Half cells')
-sp_hist.hist(atd_mean_hl, bins=np.arange(-150, 251, 20), label='All cells', alpha=0.5)
-sp_hist.hist(s45_mean_hl, bins=np.arange(-150, 251, 20), label='S45', alpha=0.5)
-sp_hist.axvline(np.mean(atd_mean_hl), color='blue', lw=2., label='Mean LHC')
-sp_hist.axvline(np.mean(s45_mean_hl), color='green', lw=2., label='Mean S45')
-colors = ['red', 'orange', 'brown', 'black']
-
-for ctr, cell in enumerate(cells_and_new):
-    index = cell_index_dict[cell]
-    mean = np.mean(qbs[:,index][atd_mask_mean])
-    sp_hist.axvline(mean, label=cell, color=colors[ctr], lw=2.)
-sp_hist.legend(bbox_to_anchor=(1.3,1), fontsize=myfontsz)
+sp_hist.set_title('Bin width: %i W' % binwidth)
+for ctr, (arc, data) in zip(xrange(len(arc_cells_dict)), arc_cells_dict.iteritems()):
+    hist, null = np.histogram(data, bins=bins)
+    sp_hist.plot(bins[:-1]+10, hist, label='Arc %s' % arc, color=ms.colorprog(ctr, arc_cells_dict), markersize=4, marker='o', lw=2)
+#hist, null = np.histogram(arc_hist_total, bins=bins)
+#sp_hist.plot(bins[:-1]+10, hist,'.', label='All', markersize=3.)
+sp_hist.legend(bbox_to_anchor=(1.2,1))
 
 
 # Compare dipoles to quads
@@ -212,11 +252,12 @@ if show_dict:
     hl_dict = mask_dict(hl_dict, mask)
 
     int_norm_factor = hl_dict['stable_beams']['intensity']['total']
-    ylims = [(-.1e-13,4.5e-13), (-10, 120), (-0.5,5)]
-    norm_factors = [int_norm_factor, 1., 0.]
-    titles = ['Normalized by intensity', 'Heat loads', 'Normalized to 1']
+    ylims = [(-.1e-13,4.5e-13), (-10, 120), (-0.5,5), (-0.5,9)]
+    norm_factors = [int_norm_factor, 1., 0., 0.]
+    titles = ['Normalized by intensity', 'Heat loads', 'Normalized to 1', 'Normalized by intensity and to 1']
+    units = ['[W/p]', '[W]', 'arb. units', 'arb. units']
 
-    for ctr, norm_factor, ylim, title in zip(xrange(len(norm_factors)), norm_factors, ylims, titles):
+    for ctr, norm_factor, ylim, title, unit in zip(xrange(len(norm_factors)), norm_factors, ylims, titles, units):
         sp = None
         for cell_ctr, cell in enumerate(cells):
             sp_ctr = cell_ctr % 3 + 1
@@ -228,7 +269,7 @@ if show_dict:
                 plt.suptitle(title, fontsize=25)
             sp = plt.subplot(3,1,sp_ctr, sharex=sp)
             sp.set_xlabel('Fill number')
-            sp.set_ylabel('Heat load [W]')
+            sp.set_ylabel('Heat load %s' % unit)
             sp.set_title(cell)
             sp.grid('on')
             names = [cell]
@@ -237,18 +278,21 @@ if show_dict:
                 if cell in var:
                     info = re_dev.search(var)
                     if info != None:
-                        name = ''.join(re_dev.search(var).groups())
+                        names.append(''.join(re_dev.search(var).groups()))
                         labels.append(info.group(2).replace('_',' '))
+                    else:
+                        print('None: ', cell, var)
 
             for name, label in zip(names, labels):
                 if ctr == 2:
                     norm_factor_2 = np.mean(hl_dict['stable_beams']['heat_load'][name][-20:])
-                    print(name, norm_factor_2)
+                elif ctr == 3:
+                    norm_factor_2 = np.mean(hl_dict['stable_beams']['heat_load'][name][-20:]/int_norm_factor[-20:])*int_norm_factor
                 else:
                     norm_factor_2 = norm_factor
                 sp.plot(hl_dict['filln'], hl_dict['stable_beams']['heat_load'][name]/norm_factor_2,'.', lw=2., label=label, markersize=12)
 
-            sp.axvline(ff_2016, color='black', label='2016', lw=2.)
+            sp.axvline(ff_2016, color='black', lw=2.)
             sp.legend(bbox_to_anchor=(1.05,1))
             sp.set_ylim(*ylim)
             sp.grid('on')
