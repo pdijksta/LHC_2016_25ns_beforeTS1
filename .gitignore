@@ -9,3 +9,6 @@ LHCMeasurementTools
 PyLHCLumiModel
 bckup_LHCMeasurementTools
 plots/
+GasFlowHLCalculator/
+HeatLoadCalculators/
+heatloads_fill_h5s/

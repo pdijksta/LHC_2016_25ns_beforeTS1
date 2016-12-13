@@ -8,9 +8,10 @@ import LHCMeasurementTools.myfilemanager as mfm
 
 # Config
 dt_seconds = 60
-max_fill_hrs = 50
+max_fill_hrs = 35
 blacklist = []
 blacklist.append(4948) # 116 hour long fill, exceeds memory
+blacklist.append(5488) # 40 hour long fill, also exceeds memory
 
 # File names
 variable_files = ['./GasFlowHLCalculator/variable_list.txt', './GasFlowHLCalculator/missing_variables.txt']
@@ -31,7 +32,8 @@ fill_sublist_2 = []
 too_long_fills = []
 for fill in fill_sublist:
     if os.path.isfile(h5_file % fill):
-        print('Fill %i: h5 file already exists!' % fill)
+        pass
+        #print('Fill %i: h5 file already exists!' % fill)
     elif fill in blacklist:
         print('Fill %i is blacklisted' % fill)
     else:

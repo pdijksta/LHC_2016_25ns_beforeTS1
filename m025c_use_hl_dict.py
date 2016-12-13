@@ -9,8 +9,8 @@ import LHCMeasurementTools.mystyle as ms
 from LHCMeasurementTools.TimberManager import timb_timestamp2float_UTC
 from LHCMeasurementTools.mystyle import colorprog
 
-dict_file_2016 = './large_heat_load_dict_2016_2.pkl'
-dict_file_2015 = './large_heat_load_dict_2015_2.pkl'
+dict_file_2016 = './large_heat_load_dict_2016.pkl'
+dict_file_2015 = './large_heat_load_dict_2015.pkl'
 
 moment = 'stable_beams'
 #moment = 'start_ramp'
@@ -48,7 +48,6 @@ def _merge_dicts_recursively(dict1, dict2, new_dict):
             print('Unexpected type %s for key %s!' % (type(dict1[key]), key))
 
 main_dict = merge_dicts(main_dict_2015, main_dict_2016)
-del main_dict_2015, main_dict_2016
 
 main_dict_0 = copy.deepcopy(main_dict)
 
@@ -59,7 +58,7 @@ if __name__ == '__main__':
     ms.mystyle_arial(fontsz=fontsz, dist_tick_lab=10)
 
     # intensity
-    if False:
+    if True:
         fig1 = plt.figure(1, figsize = (8*1.5,6*1.5))
         fig1.set_facecolor('w')
 
@@ -99,7 +98,7 @@ if __name__ == '__main__':
     #sp_ctr = 0
 
     # Heat load
-    if False:
+    if True:
         fig2 = plt.figure(2, figsize = (8*1.5,6*1.5))
         fig2.set_facecolor('w')
 

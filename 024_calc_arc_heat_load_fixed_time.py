@@ -125,10 +125,9 @@ def get_len_norm_factor(input_key):
     """ Obtain the quadrupole lengths """
     for key, value in HL.variable_lists_heatloads.iteritems():
         if input_key in value:
-            break
+            return HL.magnet_length[key][0]
     else:
         raise ValueError('Key %s not found in variable list!' % input_key)
-    return HL.magnet_length[key][0]
 
 def cut_arrays(arr, time_of_interest,avg_period=avg_period):
     """
@@ -293,6 +292,7 @@ if show_plot:
 
     # Heat loads model
     sphlcell.plot(imp_data[:,0], imp_data[:,1]*len_cell, label=imp_label)
+    sphlquad.plot(imp_data[:,0], imp_data[:,1], label=imp_label)
     sphlcell.plot(sr_data[:,0], sr_data[:,1]*len_cell, label=sr_label)
     sphlcell.plot(imp_data[:,0], (imp_data[:,1]+sr_data[:,1])*len_cell, label='Imp+SR')
 
