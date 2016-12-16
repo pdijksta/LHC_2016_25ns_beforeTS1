@@ -27,7 +27,6 @@ if use_2016:
     fills_bmodes_file = './fills_and_bmodes.pkl'
     csv_file_names = ['fill_basic_data_csvs/basic_data_fill_%d.csv',
             'fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv']
-            #'fill_heatload_data_csvs/heatloads_fill_%d.csv'
     h5_file_names = ['heatloads_fill_h5s/heatloads_all_fill_%i.h5']
     filling_pattern_csv = './fill_basic_data_csvs/injection_scheme.csv'
     base_folder = './'
