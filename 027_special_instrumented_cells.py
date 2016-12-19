@@ -16,7 +16,7 @@ import LHCMeasurementTools.mystyle as ms
 import LHCMeasurementTools.myfilemanager as mfm
 import LHCMeasurementTools.LHC_Energy as Energy
 
-from GasFlowHLCalculator.compute_QBS_LHC import compute_QBS_LHC
+import GasFlowHLCalculator.qbs_fill as qf
 from GasFlowHLCalculator.data_QBS_LHC import arc_index, Cell_list
 
 # Config
@@ -27,7 +27,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('filln', type=int)
 parser.add_argument('-a', help='Point in time where to calculate the heat load', type=float, default=-1.)
 parser.add_argument('-d', help='Plot for all fills in 2015/2016', action='store_true')
-parser.add_argument('-w', help='Histogram bin width', default=20, type=float)
+parser.add_argument('-w', help='Histogram bin width', default=20., type=float)
 args = parser.parse_args()
 
 filln = args.filln
@@ -83,20 +83,11 @@ y_min, y_max = -10, np.max(heatloads.data)+5
 timestamps = (heatloads.timestamps - heatloads.timestamps[0])/3600.
 mask_mean = np.abs(timestamps - avg_time_hrs) < avg_pm_hrs
 
-atd_ob = mfm.h5_to_obj(h5_file)
-QBS_ARC_AVG, arc_list, qbs, qbs_locals = compute_QBS_LHC(atd_ob, use_dP=False, return_qbs=True)
-atd_tt = (atd_ob.timestamps - atd_ob.timestamps[0])/3600.
-atd_mask_mean = np.abs(atd_tt - avg_time_hrs) < avg_pm_hrs
+qbs_ob = qf.compute_qbs_fill(filln, use_dP=True)
+qbs_tt = (qbs_ob.timestamps - qbs_ob.timestamps[0])/3600.
+atd_mask_mean = np.abs(qbs_tt - avg_time_hrs) < avg_pm_hrs
 
-arc_cells_dict = {}
-for ctr, arc_str in enumerate(arc_list):
-    arc = arc_str[-2:]
-    first, last = arc_index[ctr,:]
-    arc_cells_dict[arc] = np.mean(qbs[atd_mask_mean,first:last+1], axis=0)
-    if ctr == 0:
-        arc_hist_total = arc_cells_dict[arc]
-    else:
-        arc_hist_total = np.append(arc_hist_total, arc_cells_dict[arc])
+arc_hist_total, arc_hist_dict = qf.arc_histograms(qbs_ob, avg_time_hrs, avg_pm_hrs)
 
 # Plots
 title = 'Special instrumented cells for fill %i' % filln
@@ -145,7 +136,7 @@ for cell_ctr, cell in enumerate(cells):
 
     sp.axvline(avg_time_hrs, color='black')
     sp.plot(timestamps, summed, label='Sum', ls='-', lw=2.)
-    sp.plot(atd_tt, qbs[:,cell_index_dict[cell]], label='Recalc.', ls='-', lw=2., c='orange')
+    sp.plot(qbs_tt, qbs_ob.data[:,cell_index_dict[cell]], label='Recalc.', ls='-', lw=2., c='orange')
     sp.legend(bbox_to_anchor=(1.3,1), title='HL at %.1f h' % avg_time_hrs, fontsize=myfontsz)
 
 # Histograms
@@ -153,10 +144,9 @@ def round_to(arr, precision):
     return np.round(arr/precision)*precision
 
 # 1 for each arc
-#bins = np.arange(round_to(arc_hist_total.min(),binwidth)-binwidth, round_to(arc_hist_total.max(),binwidth)+binwidth*3/2, binwidth)
-bins = np.arange(-50, 251, 300./11.)
-ctr = 0
-for arc, data in arc_cells_dict.iteritems():
+bins = np.arange(round_to(arc_hist_total.min(),binwidth)-binwidth, round_to(arc_hist_total.max(),binwidth)+binwidth*3/2, binwidth)
+#bins = np.arange(-50, 251, 300./11.)
+for ctr, (arc, data) in enumerate(arc_hist_dict.iteritems()):
     sp_ctr = ctr % 4 + 1
     if sp_ctr == 1:
         fig = plt.figure()
@@ -165,26 +155,25 @@ for arc, data in arc_cells_dict.iteritems():
         plt.suptitle(title)
         fig.patch.set_facecolor('w')
     sp = plt.subplot(2,2,sp_ctr)
-    sp.hist(arc_hist_total, bins=bins, alpha=0.5, color='blue')
-    sp.hist(data, bins=bins, color='green')
+    sp.hist(arc_hist_total, bins=bins, alpha=0.5, color='blue', weights=1./len(arc_hist_total)*np.ones_like(arc_hist_total))
+    sp.hist(data, bins=bins, color='green', alpha=0.5, weights=1./len(data)*np.ones_like(data))
     sp.axvline(np.mean(data), lw=2., color='green')
     sp.axvline(np.mean(arc_hist_total), lw=2., color='blue')
     sp.grid('on')
     sp.set_xlabel('Heat load [W]')
-    sp.set_ylabel('# Half cells')
+    sp.set_ylabel('# Half cells (normalized)')
     sp.set_title('Arc %s' % arc)
 
     if arc == '45':
         colors = ['red', 'orange', 'brown']
         for cell_ctr, cell in enumerate(cells):
-            mean = np.mean(qbs[atd_mask_mean,cell_index_dict[cell]])
+            mean = np.mean(qbs_ob.data[atd_mask_mean,cell_index_dict[cell]])
             sp.axvline(mean, label=cell, color=colors[cell_ctr])
             sp.legend(bbox_to_anchor=(1.2,1))
     elif arc == '12':
-        mean = np.mean(qbs[atd_mask_mean,cell_index_dict[new_cell]])
+        mean = np.mean(qbs_ob.data[atd_mask_mean,cell_index_dict[new_cell]])
         sp.axvline(mean, label=new_cell, color='red')
         sp.legend(bbox_to_anchor=(1.2,1))
-    ctr += 1
 
 # 1 plot for all sectors
 fig = plt.figure()
@@ -195,9 +184,11 @@ sp_hist = plt.subplot(2,2,1)
 sp_hist.set_xlabel('Heat load [W]')
 sp_hist.set_ylabel('# Half cells')
 sp_hist.set_title('Bin width: %i W' % binwidth)
-for ctr, (arc, data) in zip(xrange(len(arc_cells_dict)), arc_cells_dict.iteritems()):
+for ctr, (arc, data) in zip(xrange(len(arc_hist_dict)), arc_hist_dict.iteritems()):
     hist, null = np.histogram(data, bins=bins)
-    sp_hist.plot(bins[:-1]+10, hist, label='Arc %s' % arc, color=ms.colorprog(ctr, arc_cells_dict), markersize=4, marker='o', lw=2)
+    sp_hist.step(bins[:-1]+10, hist, label='Arc %s' % arc, color=ms.colorprog(ctr, arc_hist_dict), lw=2)
+    #sp_hist.hist(data, bins=bins, color=ms.colorprog(ctr, arc_hist_dict), alpha=0.2, lw=2., label='Arc %s' % arc)
+
 #hist, null = np.histogram(arc_hist_total, bins=bins)
 #sp_hist.plot(bins[:-1]+10, hist,'.', label='All', markersize=3.)
 sp_hist.legend(bbox_to_anchor=(1.2,1))
@@ -245,7 +236,7 @@ for sp, dev_list, title in zip((sp_dip, sp_quad), (dip_list, quad_list), ('Dipol
 
 # From large HL dict
 if show_dict:
-    from m025c_use_hl_dict import main_dict as hl_dict, mask_dict, main_dict_2016
+    from LHCMeasurementTools.LHC_Heat_load_dict import main_dict as hl_dict, mask_dict, main_dict_2016
 
     mask = hl_dict['stable_beams']['n_bunches']['b1'] > 1000
     ff_2016 = main_dict_2016['filln'][0]
