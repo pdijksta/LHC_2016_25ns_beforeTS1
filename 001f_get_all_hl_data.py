@@ -1,5 +1,6 @@
 import os
 import cPickle as pickle
+import sys
 
 import LHCMeasurementTools.LHC_Fills as Fills
 from LHCMeasurementTools.LHC_Fill_LDB_Query import save_variables_and_pickle
@@ -12,6 +13,7 @@ max_fill_hrs = 35
 blacklist = []
 blacklist.append(4948) # 116 hour long fill, exceeds memory
 blacklist.append(5488) # 40 hour long fill, also exceeds memory
+year = 2015
 
 # File names
 variable_files = ['./GasFlowHLCalculator/variable_list.txt', './GasFlowHLCalculator/missing_variables.txt']
@@ -22,18 +24,28 @@ temp_filepath = './tmp/' + file_name
 temp_file = temp_filepath + '_%i.csv'
 h5_file = h5_dir + file_name + '_%i.h5'
 
-fills_pkl_name = 'fills_and_bmodes.pkl'
+if year == 2015:
+    fills_pkl_name = '/afs/cern.ch/project/spsecloud/LHC_2015_PhysicsAfterTS2/fills_and_bmodes.pkl'
+elif year == 2016:
+    fills_pkl_name = 'fills_and_bmodes.pkl'
+else:
+    sys.exit()
+
 with open(fills_pkl_name, 'rb') as fid:
     dict_fill_bmodes = pickle.load(fid)
+
+if os.path.isfile(saved_pkl):
+    with open(saved_pkl, 'r') as f:
+        saved_dict = pickle.load(f)
+else:
+    saved_dict = {}
 
 fill_sublist = dict_fill_bmodes.keys()
 
 fill_sublist_2 = []
-too_long_fills = []
 for fill in fill_sublist:
-    if os.path.isfile(h5_file % fill):
+    if fill in saved_dict or os.path.isfile(h5_file % fill):
         pass
-        #print('Fill %i: h5 file already exists!' % fill)
     elif fill in blacklist:
         print('Fill %i is blacklisted' % fill)
     else:
@@ -41,8 +53,8 @@ for fill in fill_sublist:
         if fill_hrs < max_fill_hrs:
             fill_sublist_2.append(fill)
         else:
-            too_long_fills.append(fill)
             print('Fill %i exceeds %i hours and is skipped' % (fill, max_fill_hrs))
+print('Processing %i fills!' % len(fill_sublist_2))
 
 varlist = []
 for n in variable_files:
@@ -63,10 +75,8 @@ for filln in fill_sublist_2:
     print('Creating h5 file for fill %i' % filln)
     mfm.obj_to_h5(htd_ob, h5_file % filln)
 
-    if os.path.isfile(h5_file % filln) and os.path.getsize(h5_file % filln) > 500e3:
+    if os.path.isfile(h5_file % filln) and os.path.getsize(h5_file % filln) > 500:
         os.remove(temp_file % filln)
         print('Deleted temporary file %s!' % (temp_file % filln))
     else:
         print('Warning! Something went wrong for file %s!\nKeeping temporary file %s.' % (h5_file % filln, temp_file % filln))
-
-print('The following fills were skipped as they are too long:\n', too_long_fills)
