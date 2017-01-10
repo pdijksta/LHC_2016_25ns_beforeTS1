@@ -20,18 +20,18 @@ import GasFlowHLCalculator.qbs_fill as qf
 colstr = {1: 'b', 2:'r'}
 binwidth = 20
 
-def main(filln, use_dP, show_hist=True, show_plot=True):
+def main(filln, no_use_dP, show_hist=True, show_plot=True):
     h5_file ='/eos/user/l/lhcscrub/timber_data_h5/cryo_heat_load_data/cryo_data_fill_%i.h5' % filln
     if not os.path.isfile(h5_file):
         raise ValueError('%s does not exist' % h5_file)
 
     arc_keys_list = HL.variable_lists_heatloads['AVG_ARC']
 
-    qbs_ob = qf.compute_qbs_fill(filln, use_dP=False)
+    qbs_ob = qf.compute_qbs_fill(filln, use_dP=True)
     qbs_arc_avg = qf.compute_qbs_arc_avg(qbs_ob)
-    if use_dP:
-        qbs = qf.compute_qbs_fill(filln, use_dP=True)
-        qbs_arc_avg_dP = qf.compute_qbs_arc_avg(qbs_ob)
+    if no_use_dP:
+        qbs_no = qf.compute_qbs_fill(filln, use_dP=False)
+        qbs_arc_avg_no = qf.compute_qbs_arc_avg(qbs_no)
 
     t_ref = qbs_ob.timestamps[0]
     with open('fills_and_bmodes.pkl', 'rb') as fid:
@@ -95,9 +95,9 @@ def main(filln, use_dP, show_hist=True, show_plot=True):
                 label1, label2 = 'with dP', 'without dP'
             else:
                 label1, label2 = None, None
-            sphlcell.plot(tt, qbs_arc_avg[:,arc_ctr],'--', color=color, lw=2., label=label2)
-            if use_dP:
-                sphlcell.plot(tt, qbs_arc_avg_dP[:,arc_ctr],'-.', color=color, lw=2., label=label1)
+            sphlcell.plot(tt, qbs_arc_avg[:,arc_ctr],'--', color=color, lw=2., label=label1)
+            if no_use_dP:
+                sphlcell.plot(tt, qbs_arc_avg_no[:,arc_ctr],'-.', color=color, lw=2., label=label2)
 
         sphlcell.legend(bbox_to_anchor=(1.1,1))
 
@@ -148,7 +148,7 @@ def main(filln, use_dP, show_hist=True, show_plot=True):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('fill', metavar='FILL', help='LHC fill number', type=int)
-    parser.add_argument('--dp', help='Calculate pressure drop.', action='store_true')
+    parser.add_argument('--nodp', help='Do not calculate pressure drop.', action='store_true')
     parser.add_argument('--nohist', help='Do not show histograms.', action='store_false')
     args = parser.parse_args()
-    main(args.fill, args.dp, show_hist=args.nohist)
+    main(args.fill, args.nodp, show_hist=args.nohist)
