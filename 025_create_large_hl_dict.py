@@ -1,9 +1,11 @@
+from __future__ import division
 import sys
 import cPickle
 import re
 import time
 import os
 import numpy as np
+import argparse
 
 import LHCMeasurementTools.TimberManager as tm
 import LHCMeasurementTools.LHC_Heatloads as hl
@@ -19,10 +21,13 @@ import HeatLoadCalculators.synchrotron_radiation_heatload as hls
 # Config
 subtract_offset = True
 hrs_after_sb = 24
-use_2016 = True
-use_2015 = not use_2016
 
-if use_2016:
+parser = argparse.ArgumentParser()
+parser.add_argument('year', type=int)
+args = parser.parse_args()
+year = args.year
+
+if year == 2016:
     pkl_file_name = './large_heat_load_dict_2016_2.pkl'
     fills_bmodes_file = './fills_and_bmodes.pkl'
     csv_file_names = ['fill_basic_data_csvs/basic_data_fill_%d.csv',
@@ -31,7 +36,7 @@ if use_2016:
     filling_pattern_csv = './fill_basic_data_csvs/injection_scheme.csv'
     base_folder = './'
     child_folders = ['./']
-elif use_2015:
+elif year == 2015:
     pkl_file_name = './large_heat_load_dict_2015_2.pkl'
     base_folder = '/afs/cern.ch/project/spsecloud/'
     child_folders = ['LHC_2015_PhysicsAfterTS2/', 'LHC_2015_PhysicsAfterTS3/', 'LHC_2015_Scrubbing50ns/', 'LHC_2015_IntRamp50ns/', 'LHC_2015_IntRamp25ns/']
@@ -39,6 +44,8 @@ elif use_2015:
     csv_file_names = ['fill_csvs/fill_%d.csv']
     h5_file_names = ['heatloads_fill_h5s/heatloads_all_fill_%i.h5']
     filling_pattern_csv = base_folder + child_folders[0] + 'injection_scheme_2015.csv'
+else:
+    raise ValueError('Invalid year!')
 
 if os.path.isfile(pkl_file_name):
     raise ValueError('Pkl file already exists!')
@@ -105,6 +112,15 @@ def cast_to_na_recursively(dictionary, assure_length=None):
         else:
             print('Unexpected type in dictionary for key %s' % key)
 
+def data_integration(timestamps, values):
+    output = 0.
+    for i in xrange(len(values)-1):
+        output += (timestamps[i+1] - timestamps[i])*(values[i] + values[i+1])/2.
+    return output
+
+def data_integration_ob(ob, offset=0.):
+    return data_integration(ob.t_stamps, ob.values - offset)
+
 # Time keys
 time_key_list = ['start_ramp', 'stop_squeeze', 'stable_beams']
 for ii in xrange(hrs_after_sb):
@@ -122,8 +138,7 @@ for var in all_heat_load_vars:
 # Filling numbers
 with open(fills_bmodes_file, 'r') as f:
     fills_and_bmodes = cPickle.load(f)
-fills_0 = fills_and_bmodes.keys()
-fills_0.sort()
+fills_0 = sorted(fills_and_bmodes.keys())
 
 # Model heat load calculators
 imp_calc = hli.HeatLoadCalculatorImpedanceLHCArc()
@@ -206,10 +221,22 @@ for filln in fills_0:
         else:
             this_subtract_offset = False
 
+
         ## Populate output dict
 
         # Fill Number
         add_to_dict(output_dict, filln, ['filln'])
+
+        # Integrated heat load
+        for var in all_heat_load_vars:
+            hl_ob = heatloads.timber_variables[var]
+            if this_subtract_offset:
+                offset = offset_dict[var]
+            else:
+                offset = 0.
+            summed_hl = data_integration_ob(hl_ob, offset)
+            key = hl_var_dict[var]['key']
+            add_to_dict(output_dict, summed_hl, ['integrated_hl', key])
 
         # Filling pattern and bpi
         pattern = filling_pattern_ob.nearest_older_sample(t_stable_beams)[0]
