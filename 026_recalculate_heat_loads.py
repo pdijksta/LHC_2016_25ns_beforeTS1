@@ -57,7 +57,9 @@ def main(filln, no_use_dP, show_hist=True, show_plot=True):
     plt.suptitle(title)
 
     # Arc half cell histograms
-    arc_hist_total, arc_hist_dict = qf.arc_histograms(qbs_ob, avg_time_hrs, avg_pm_hrs=0.1)
+    lhc_hist_dict = qf.lhc_histograms(qbs_ob, avg_time_hrs, avg_pm_hrs=0.1)
+    arc_hist_dict = lhc_hist_dict['arcs']
+    arc_hist_total = lhc_hist_dict['total']
 
     if show_plot:
         # Intensity and Energy
@@ -130,17 +132,21 @@ def main(filln, no_use_dP, show_hist=True, show_plot=True):
 
             # 1 plot for all sectors
             fig = plt.figure()
+            title = 'Fill %i at %.1f h: LHC Arcs histograms' % (filln, avg_time_hrs)
             fig.canvas.set_window_title(title)
             fig.patch.set_facecolor('w')
             plt.suptitle(title)
             sp_hist = plt.subplot(2,2,1)
             sp_hist.set_xlabel('Heat load [W]')
             sp_hist.set_ylabel('# Half cells')
-            sp_hist.set_title('Bin width: %i W' % binwidth)
-            for ctr, (arc, data) in zip(xrange(len(arc_hist_dict)), arc_hist_dict.iteritems()):
-                hist, null = np.histogram(data, bins=bins)
-                sp_hist.step(bins[:-1]+10, hist, label='Arc %s' % arc, color=ms.colorprog(ctr, arc_hist_dict), lw=2)
-
+            sp_hist.set_title(title)
+            sp_hist.grid(True)
+            for ctr, arc in enumerate(sorted(arc_hist_dict.keys())):
+                data = arc_hist_dict[arc]
+                hist, null = np.histogram(data, bins=bins+ctr)
+                sp_hist.step(bins[:-1]+10+ctr, hist, label='Arc %s' % arc, color=ms.colorprog(ctr, arc_hist_dict), lw=2)
+            ymin, ymax = sp_hist.get_ylim()
+            sp_hist.set_ylim(ymin, round_to(ymax,5)+5)
             sp_hist.legend(bbox_to_anchor=(1.2,1))
 
         plt.show()

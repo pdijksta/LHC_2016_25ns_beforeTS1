@@ -82,7 +82,7 @@ for cell in cells:
                 hl_dict_logged[cell][affix] = var
                 break
         else:
-            hl_dict_logged[cell]['Sum'] = var
+            hl_dict_logged[cell]['Cell'] = var
 
 with open('fills_and_bmodes.pkl', 'rb') as fid:
     dict_fill_bmodes = pickle.load(fid)
@@ -111,7 +111,9 @@ qbs_ob = qf.compute_qbs_fill(filln, use_dP=True)
 qbs_tt = (qbs_ob.timestamps - qbs_ob.timestamps[0])/3600.
 atd_mask_mean = np.abs(qbs_tt - avg_time_hrs) < avg_pm_hrs
 
-arc_hist_total, arc_hist_dict = qf.arc_histograms(qbs_ob, avg_time_hrs, avg_pm_hrs)
+lhc_hist_dict = qf.lhc_histograms(qbs_ob, avg_time_hrs, avg_pm_hrs)
+arc_hist_total = lhc_hist_dict['total'] 
+arc_hist_dict = lhc_hist_dict['arcs']
 
 # Plots
 title = 'Special instrumented cells for fill %i' % filln
@@ -129,12 +131,11 @@ for cell_ctr, cell in enumerate(cells):
     sp_ctr = cell_ctr +1
     sp = plt.subplot(2,2,sp_ctr, sharex=sp)
     sp.set_title(cell)
-    sp.grid('on')
+    sp.grid(True)
     sp.set_xlabel('Time [h]')
     sp.set_ylabel('Heat load [W]')
-    sp.set_ylim(y_min, y_max)
-    if filln == 5277 and cell == '13L5':
-        sp.set_ylim(-150, y_max)
+#    if filln == 5277 and cell == '13L5':
+#        sp.set_ylim(-150, y_max)
     sp2 = sp.twinx()
     sp2.set_ylabel('Energy [TeV]')
     sp2.plot(energy.t_stamps, energy.energy/1e3, c='black', lw=2.)
@@ -152,30 +153,38 @@ for cell_ctr, cell in enumerate(cells):
         sp.plot(timestamps, values, label=affix, ls='-', lw=2., color=color)
         if recompute:
             sp.plot(special_tt, special_hl[cell][affix], ls='--', lw=2., color=color)
-    sp.axvline(avg_time_hrs, color='black')
-    sp.plot(timestamps, summed, label='Sum', ls='-', lw=2., color='blue')
+    #sp.axvline(avg_time_hrs, color='black')
+    sp.plot(timestamps, summed, label='Sum of magnets', ls='-', lw=2., color='blue')
     if recompute:
         sp.plot(special_tt, summed_re, ls='--', lw=2., color='blue')
     sp.plot(qbs_tt, qbs_ob.data[:,cell_index_dict[cell]], label='Cell recalc.', ls='--', lw=2., c='orange')
+    cell_index = heatloads.variables.index(cell_vars['Cell'])
+    sp.plot(timestamps, heatloads.data[:,cell_index], label='Cell logged', ls='-', lw=2., c='orange')
+    sp.set_ylim(-10, None)
     if sp_ctr == 2:
-        sp.legend(bbox_to_anchor=(1.3,1), title='HL at %.1f h' % avg_time_hrs, fontsize=myfontsz)
+        sp.legend(bbox_to_anchor=(1.3,1), fontsize=myfontsz)
 
-# Also show S45 hist if possible
-if hist:
-    sp4 = plt.subplot(2,2,4)
-    sp4.set_title('Arc S45 / LHC')
-    sp4.grid('on')
-    sp4.set_xlabel('Time [h]')
-    sp4.set_ylabel('Heat load [W]')
+# Also show LHC hist
+def round_to(arr, precision):
+    return np.round(arr/precision)*precision
 
+bins = np.arange(round_to(arc_hist_total.min(),binwidth)-binwidth, round_to(arc_hist_total.max(),binwidth)+binwidth*3/2, binwidth)
+
+sp = plt.subplot(2,2,4)
+sp.set_title('LHC cell heat load')
+sp.grid(True)
+sp.set_xlabel('Time [h]')
+sp.set_ylabel('Heat load [W]')
+sp.hist(arc_hist_total, bins=bins, alpha=0.5, color='blue') 
+colors=['red', 'green', 'orange', 'black']
+for cell_ctr, cell in enumerate(cells_and_new):
+    mean = np.mean(qbs_ob.data[atd_mask_mean,cell_index_dict[cell]])
+    sp.axvline(mean, label=cell, color=colors[cell_ctr])
+sp.legend(bbox_to_anchor=(1.2,1))
 
 # Histograms
 if hist:
-    def round_to(arr, precision):
-        return np.round(arr/precision)*precision
-
     # 1 for each arc
-    bins = np.arange(round_to(arc_hist_total.min(),binwidth)-binwidth, round_to(arc_hist_total.max(),binwidth)+binwidth*3/2, binwidth)
     #bins = np.arange(-50, 251, 300./11.)
     for ctr, (arc, data) in enumerate(arc_hist_dict.iteritems()):
         sp_ctr = ctr % 4 + 1
@@ -190,7 +199,7 @@ if hist:
         sp.hist(data, bins=bins, color='green', alpha=0.5, weights=1./len(data)*np.ones_like(data))
         sp.axvline(np.mean(data), lw=2., color='green')
         sp.axvline(np.mean(arc_hist_total), lw=2., color='blue')
-        sp.grid('on')
+        sp.grid(True)
         sp.set_xlabel('Heat load [W]')
         sp.set_ylabel('# Half cells (normalized)')
         sp.set_title('Arc %s' % arc)
@@ -200,34 +209,30 @@ if hist:
             for cell_ctr, cell in enumerate(cells):
                 mean = np.mean(qbs_ob.data[atd_mask_mean,cell_index_dict[cell]])
                 sp.axvline(mean, label=cell, color=colors[cell_ctr])
-                sp4.axvline(mean, label=cell, color=colors[cell_ctr])
-                sp.legend(bbox_to_anchor=(1.2,1))
-            sp4.hist(arc_hist_total, bins=bins, alpha=0.5, color='blue', weights=1./len(arc_hist_total)*np.ones_like(arc_hist_total), label='LHC')
-            sp4.hist(data, bins=bins, color='green', alpha=0.5, weights=1./len(data)*np.ones_like(data), label='Arc S45')
+            sp.legend(bbox_to_anchor=(1.2,1))
         elif arc == '12':
             mean = np.mean(qbs_ob.data[atd_mask_mean,cell_index_dict[new_cell]])
             sp.axvline(mean, label=new_cell, color='red')
             sp.legend(bbox_to_anchor=(1.2,1))
 
-    sp4.legend(bbox_to_anchor=(1.2,1))
-
-    # 1 plot for all sectors
-    fig = plt.figure()
-    fig.canvas.set_window_title(title)
-    fig.patch.set_facecolor('w')
-    plt.suptitle(title)
-    sp_hist = plt.subplot(2,2,1)
-    sp_hist.set_xlabel('Heat load [W]')
-    sp_hist.set_ylabel('# Half cells')
-    sp_hist.set_title('Bin width: %i W' % binwidth)
-    for ctr, (arc, data) in zip(xrange(len(arc_hist_dict)), arc_hist_dict.iteritems()):
-        hist, null = np.histogram(data, bins=bins)
-        sp_hist.step(bins[:-1]+10, hist, label='Arc %s' % arc, color=ms.colorprog(ctr, arc_hist_dict), lw=2)
-        #sp_hist.hist(data, bins=bins, color=ms.colorprog(ctr, arc_hist_dict), alpha=0.2, lw=2., label='Arc %s' % arc)
-
-    #hist, null = np.histogram(arc_hist_total, bins=bins)
-    #sp_hist.plot(bins[:-1]+10, hist,'.', label='All', markersize=3.)
-    sp_hist.legend(bbox_to_anchor=(1.2,1))
+#    # 1 plot for all sectors
+#    fig = plt.figure()
+#    title = 'Fill %i at %.1f h: LHC Arcs histograms' % (filln, avg_time_hrs)
+#    fig.canvas.set_window_title(title)
+#    fig.patch.set_facecolor('w')
+#    sp_hist = plt.subplot(2,2,1)
+#    sp_hist.set_xlabel('Heat load [W]')
+#    sp_hist.set_ylabel('# Half cells')
+#    sp_hist.set_title(title)
+#    sp_hist.grid(True)
+#    for ctr, (arc, data) in zip(xrange(len(arc_hist_dict)), arc_hist_dict.iteritems()):
+#        hist, null = np.histogram(data, bins=bins)
+#        sp_hist.step(bins[:-1]+10, hist, label='Arc %s' % arc, color=ms.colorprog(ctr, arc_hist_dict), lw=2)
+#        #sp_hist.hist(data, bins=bins, color=ms.colorprog(ctr, arc_hist_dict), alpha=0.2, lw=2., label='Arc %s' % arc)
+#
+#    #hist, null = np.histogram(arc_hist_total, bins=bins)
+#    #sp_hist.plot(bins[:-1]+10, hist,'.', label='All', markersize=3.)
+#    sp_hist.legend(bbox_to_anchor=(1.2,1))
 
 
     # Compare dipoles to quads
@@ -267,7 +272,7 @@ if hist:
         sp.legend(bbox_to_anchor=(1.2,1))
         sp.set_ylim(-10,None)
         sp.set_xlabel('Time [h]')
-        sp.grid('on')
+        sp.grid(True)
 
 
 # From large HL dict
@@ -298,7 +303,7 @@ if show_dict:
             sp.set_xlabel('Fill number')
             sp.set_ylabel('Heat load %s' % unit)
             sp.set_title(cell)
-            sp.grid('on')
+            sp.grid(True)
             names = [cell]
             labels = [cell]
             for var in variable_list:
@@ -322,6 +327,6 @@ if show_dict:
             sp.axvline(ff_2016, color='black', lw=2.)
             sp.legend(bbox_to_anchor=(1.05,1))
             sp.set_ylim(*ylim)
-            sp.grid('on')
+            sp.grid(True)
 
 plt.show()

@@ -1,7 +1,6 @@
 from __future__ import division
 import sys
 import os
-import argparse
 import cPickle as pickle
 
 import numpy as np
@@ -13,6 +12,10 @@ import LHCMeasurementTools.TimberManager as tm
 
 import GasFlowHLCalculator.qbs_fill as qf
 from GasFlowHLCalculator.data_QBS_LHC import arc_index, arc_list, Cell_list
+from GasFlowHLCalculator.data_qbs import data_qbs, arc_index, arc_list
+Cell_list = data_qbs.Cell_list
+Sector_list = data_qbs.Sector_list
+
 
 plt.close('all')
 ms.mystyle_arial(fontsz=16, dist_tick_lab=8)
@@ -33,7 +36,9 @@ for filln in fill_list:
     avg_time_hrs = (dict_fill_bmodes[filln]['t_start_STABLE'] - dict_fill_bmodes[filln]['t_startfill'])/3600.
     h5_file ='/eos/user/l/lhcscrub/timber_data_h5/cryo_heat_load_data/cryo_data_fill_%i.h5' % filln
     qbs_ob = qf.compute_qbs_fill(filln, use_dP=True)
-    arc_hist_total, arc_hist_dict = qf.arc_histograms(qbs_ob, avg_time_hrs, avg_pm_hrs)
+    lhc_hist_dict = qf.lhc_histograms(qbs_ob, avg_time_hrs, avg_pm_hrs)
+    arc_hist_dict = lhc_hist_dict['arcs']
+    arc_hist_total = lhc_hist_dict['total']
     dict_dict[filln] = {'total': arc_hist_total, 'arcs': arc_hist_dict, 'qbs': qbs_ob}
 
     tt = tm.UnixTimeStamp2UTCTimberTimeString(dict_fill_bmodes[filln]['t_startfill'])
@@ -139,6 +144,12 @@ hl_0 = dict_dict[fill_list[0]]['total']
 hl_1 = dict_dict[fill_list[-1]]['total']
 delta_hl = hl_0 - hl_1
 sp.plot(hl_0, delta_hl,'.', markersize=7.)
+
+varlist = [x[:4] for x in lhc_hist_dict['variables']]
+info_list = zip(varlist, Sector_list, delta_hl)
+info_sorted = sorted(info_list, reverse=True, key=lambda x: x[2])
+for ii in xrange(5):
+    print(info_sorted[ii])
 
 # Arcs
 sp = plt.subplot(2,2,2)
