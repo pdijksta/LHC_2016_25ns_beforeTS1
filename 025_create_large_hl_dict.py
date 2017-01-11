@@ -101,12 +101,11 @@ def add_to_dict(dictionary, value, keys, zero=False):
             this_dict = this_dict[key]
 
 def cast_to_na_recursively(dictionary, assure_length=None):
-    for key in dictionary:
-        new_dictionary = dictionary[key]
-        if type(new_dictionary) is dict:
-            cast_to_na_recursively(new_dictionary, assure_length)
-        elif type(new_dictionary) is list:
-            dictionary[key] = np.array(new_dictionary)
+    for key, item in dictionary.iteritems():
+        if type(item) is dict:
+            cast_to_na_recursively(item, assure_length)
+        elif type(item) is list:
+            dictionary[key] = np.array(item)
             if assure_length is not None and len(dictionary[key]) != assure_length:
                 print('Expected length: %i, Actual length: %i for key %s' % (assure_length, len(dictionary[key]), key))
         else:
@@ -324,7 +323,7 @@ for filln in fills_0:
                 this_add_to_dict(n_bunches, ['n_bunches', 'b%i' % beam])
 
             # Imp / SR
-            tot_imp, tot_sr, tot_model = 0, 0, 0
+            tot_imp, tot_sr = 0, 0
             for beam in (1,2):
                 beam_int = int_bx[beam]
                 n_bunches = n_bunches_bx[beam]
@@ -335,14 +334,12 @@ for filln in fills_0:
                 else:
                     imp, sr = 0, 0
                 tot_imp += imp
-                tot_model += imp
                 this_add_to_dict(imp, ['heat_load', 'imp', 'b%i' % beam])
                 tot_sr += sr
-                tot_model += sr
                 this_add_to_dict(sr, ['heat_load', 'sr', 'b%i' % beam])
             this_add_to_dict(tot_imp, ['heat_load', 'imp', 'total'])
             this_add_to_dict(tot_sr, ['heat_load', 'sr', 'total'])
-            this_add_to_dict(tot_model, ['heat_load', 'total_model'])
+            this_add_to_dict(tot_imp+tot_sr, ['heat_load', 'total_model'])
 
             # Heat loads
             for var in all_heat_load_vars:
