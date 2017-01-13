@@ -21,6 +21,13 @@ list_scan_times = np.linspace(1.7, 2.25, 20)
 filln = 5085
 list_scan_times = np.linspace(1.7, 2.25, 20)
 
+filln = 5332
+list_scan_times = np.linspace(1.7, 2.25, 20)
+
+#filln = 5338
+#list_scan_times = np.linspace(1.7, 2.25, 20)
+
+
 scan_thrld = 100
 plot_emittance = True
 
@@ -40,7 +47,7 @@ t_fill_len = t_end_fill - t_start_fill
 t_ref = t_start_fill
 n_traces = 50.
 
-bsrt_calib_dict = BSRT_calib.emittance_dictionary()
+bsrt_calib_dict = BSRT_calib.emittance_dictionary(filln)
 
 if len(sys.argv)>1:
 
