@@ -57,7 +57,7 @@ def main(filln, no_use_dP, show_hist=True, show_plot=True):
     plt.suptitle(title)
 
     # Arc half cell histograms
-    lhc_hist_dict = qf.lhc_histograms(qbs_ob, avg_time_hrs, avg_pm_hrs=0.1)
+    lhc_hist_dict = qf.lhc_histograms(qbs_ob, avg_time_hrs, avg_pm=0.1)
     arc_hist_dict = lhc_hist_dict['arcs']
     arc_hist_total = lhc_hist_dict['total']
 
