@@ -15,9 +15,13 @@ from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumeri
 import LHCMeasurementTools.mystyle as ms
 import LHCMeasurementTools.myfilemanager as mfm
 import LHCMeasurementTools.LHC_Energy as Energy
+import LHCMeasurementTools.savefig as sf
+sf.pdijksta(0,0)
+sys.exit()
 
 import GasFlowHLCalculator.qbs_fill as qf
-from GasFlowHLCalculator.data_QBS_LHC import arc_index, Cell_list
+from GasFlowHLCalculator.data_qbs import arc_index, data_qbs
+Cell_list = data_qbs.Cell_list
 
 # Config
 avg_pm_hrs = 0.1
@@ -28,16 +32,22 @@ parser.add_argument('filln', type=int)
 parser.add_argument('-a', help='Point in time where to calculate the heat load', type=float, default=-1.)
 parser.add_argument('-d', help='Plot for all fills in 2015/2016', action='store_true')
 parser.add_argument('-w', help='Histogram bin width', default=20., type=float)
-parser.add_argument('--re', help='Show recomputed data', action='store_true')
+parser.add_argument('--nore', help='Show recomputed data', action='store_true')
+parser.add_argument('--nolog', help='Do not show logged data', action='store_true')
 parser.add_argument('--hist', help='Show histograms', action='store_true')
+parser.add_argument('--details', help='Show details of input data', action='store_true')
+parser.add_argument('--pds', help='Save fig in pdijksta folder', action='store_true')
 args = parser.parse_args()
 
 filln = args.filln
 avg_time_hrs = args.a
 show_dict = args.d
 binwidth = args.w
-recompute = args.re
+recompute = not args.nore
+logged = not args.nolog
 hist = args.hist
+details = args.details
+pds = args.pds
 
 myfontsz = 16
 ms.mystyle_arial(fontsz=myfontsz, dist_tick_lab=8)
@@ -47,12 +57,15 @@ plt.close('all')
 # Definitions
 keys = ['special_HC_Q1', 'special_HC_D2', 'special_HC_D3', 'special_HC_D4', 'special_total']
 cells = ['13L5', '33L5', '13R4']
+cell_title_dict = {
+        '13L5': '13L5 / 12R4',
+        '33L5': '33L5 / 32R4 (broken sensor)',
+        '13R4': '13R4 / 13L5 (reversed gas flow)',
+        }
 new_cell = '31L2'
 cells_and_new = cells + [new_cell]
 affix_list = ['Q1', 'D2', 'D3', 'D4']
 beam_colors = {1: 'b', 2: 'r'}
-
-h5_file ='/eos/user/l/lhcscrub/timber_data_h5/cryo_heat_load_data/cryo_data_fill_%i.h5' % filln
 
 # Which cells are the special ones in the qbs data?
 cell_index_dict = {}
@@ -99,14 +112,25 @@ energy.t_stamps = (energy.t_stamps - energy.t_stamps[0])/3600.
 t_ref = dict_fill_bmodes[filln]['t_startfill']
 tref_string = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime(t_ref))
 
-heatloads = SetOfHomogeneousNumericVariables(variable_list=variable_list, timber_variables=fill_dict).aligned_object(dt_seconds=30)
+heatloads = SetOfHomogeneousNumericVariables(variable_list=variable_list, timber_variables=fill_dict).aligned_object(dt_seconds=60)
+# Swap 13L5 D2 and D4, as the correct gas flow is in reverse direction
+for ctr,var in enumerate(heatloads.variables):
+    if '13R4' in var:
+        if 'D2' in var:
+            ctr_2 = ctr
+            var_2 = var
+        elif 'D4' in var:
+            ctr_4 = ctr
+            var_4 = var
+heatloads.variables[ctr_2] = var_4
+heatloads.variables[ctr_4] = var_2
+
 y_min, y_max = -10, np.max(heatloads.data)+5
 timestamps = (heatloads.timestamps - heatloads.timestamps[0])/3600.
 mask_mean = np.abs(timestamps - avg_time_hrs) < avg_pm_hrs
 
-if recompute:
-    special_hl = qf.special_qbs_fill(filln)
-    special_tt = (special_hl['timestamps'] - special_hl['timestamps'][0]) / 3600.
+special_hl = qf.special_qbs_fill(filln)
+special_tt = (special_hl['timestamps'] - special_hl['timestamps'][0]) / 3600.
 qbs_ob = qf.compute_qbs_fill(filln, use_dP=True)
 qbs_tt = (qbs_ob.timestamps - qbs_ob.timestamps[0])/3600.
 atd_mask_mean = np.abs(qbs_tt - avg_time_hrs) < avg_pm_hrs
@@ -116,12 +140,18 @@ arc_hist_total = lhc_hist_dict['total']
 arc_hist_dict = lhc_hist_dict['arcs']
 
 # Plots
+figs = []
+def figure(title):
+    fig = plt.figure()
+    fig.canvas.set_window_title(title)
+    figs.append((fig, title))
+    fig.patch.set_facecolor('w')
+    plt.suptitle(title, fontsize=20)
+    return fig
+
 title = 'Special instrumented cells for fill %i' % filln
-fig = plt.figure()
-fig.canvas.set_window_title(title)
-fig.patch.set_facecolor('w')
+fig = figure(title)
 fig.subplots_adjust(left=.06, right=.88, top=.93, hspace=.38, wspace=.42)
-plt.suptitle(title)
 sp = None
 
 # Cells
@@ -130,7 +160,7 @@ for cell_ctr, cell in enumerate(cells):
     cell_vars = hl_dict_logged[cell]
     sp_ctr = cell_ctr +1
     sp = plt.subplot(2,2,sp_ctr, sharex=sp)
-    sp.set_title(cell)
+    sp.set_title(cell_title_dict[cell])
     sp.grid(True)
     sp.set_xlabel('Time [h]')
     sp.set_ylabel('Heat load [W]')
@@ -138,7 +168,7 @@ for cell_ctr, cell in enumerate(cells):
 #        sp.set_ylim(-150, y_max)
     sp2 = sp.twinx()
     sp2.set_ylabel('Energy [TeV]')
-    sp2.plot(energy.t_stamps, energy.energy/1e3, c='black', lw=2.)
+    sp2.plot(energy.t_stamps, energy.energy/1e3, c='black', lw=2., label='Energy')
     
     summed, summed_re = 0., 0.
     for ctr, affix in enumerate(affix_list):
@@ -150,19 +180,27 @@ for cell_ctr, cell in enumerate(cells):
         if recompute:
             summed_re += special_hl[cell][affix]
         color = ms.colorprog(ctr, cell_vars)
-        sp.plot(timestamps, values, label=affix, ls='-', lw=2., color=color)
+        if logged:
+            sp.plot(timestamps, values, label=affix, ls='-', lw=2., color=color)
+            label=None
+        else:
+            label=affix
         if recompute:
-            sp.plot(special_tt, special_hl[cell][affix], ls='--', lw=2., color=color)
+            sp.plot(special_tt, special_hl[cell][affix], ls='--', lw=2., color=color, label=label)
     #sp.axvline(avg_time_hrs, color='black')
-    sp.plot(timestamps, summed, label='Sum of magnets', ls='-', lw=2., color='blue')
+    if logged:
+        sp.plot(timestamps, summed, label='Sum of magnets', ls='-', lw=2., color='blue')
+        label = None
+    else:
+        label='Sum of magnets'
     if recompute:
-        sp.plot(special_tt, summed_re, ls='--', lw=2., color='blue')
+        sp.plot(special_tt, summed_re, ls='--', lw=2., color='blue', label=label)
     sp.plot(qbs_tt, qbs_ob.data[:,cell_index_dict[cell]], label='Cell recalc.', ls='--', lw=2., c='orange')
     cell_index = heatloads.variables.index(cell_vars['Cell'])
     sp.plot(timestamps, heatloads.data[:,cell_index], label='Cell logged', ls='-', lw=2., c='orange')
     sp.set_ylim(-10, None)
     if sp_ctr == 2:
-        sp.legend(bbox_to_anchor=(1.3,1), fontsize=myfontsz)
+        ms.comb_legend(sp,sp2,bbox_to_anchor=(1.3,1), fontsize=myfontsz)
 
 # Also show LHC hist
 def round_to(arr, precision):
@@ -171,7 +209,7 @@ def round_to(arr, precision):
 bins = np.arange(round_to(arc_hist_total.min(),binwidth)-binwidth, round_to(arc_hist_total.max(),binwidth)+binwidth*3/2, binwidth)
 
 sp = plt.subplot(2,2,4)
-sp.set_title('LHC cell heat load')
+sp.set_title('LHC cell heat load - all arcs')
 sp.grid(True)
 sp.set_xlabel('Time [h]')
 sp.set_ylabel('Heat load [W]')
@@ -179,8 +217,8 @@ sp.hist(arc_hist_total, bins=bins, alpha=0.5, color='blue')
 colors=['red', 'green', 'orange', 'black']
 for cell_ctr, cell in enumerate(cells_and_new):
     mean = np.mean(qbs_ob.data[atd_mask_mean,cell_index_dict[cell]])
-    sp.axvline(mean, label=cell, color=colors[cell_ctr])
-sp.legend(bbox_to_anchor=(1.2,1))
+    sp.axvline(mean, label=cell, color=colors[cell_ctr], lw=2)
+sp.legend(bbox_to_anchor=(1.2,1), title='Recalc. cells')
 
 # Histograms
 if hist:
@@ -189,11 +227,8 @@ if hist:
     for ctr, (arc, data) in enumerate(arc_hist_dict.iteritems()):
         sp_ctr = ctr % 4 + 1
         if sp_ctr == 1:
-            fig = plt.figure()
             title = 'Fill %i: Heat loads at %.1f hours' % (filln, avg_time_hrs)
-            fig.canvas.set_window_title(title)
-            plt.suptitle(title)
-            fig.patch.set_facecolor('w')
+            fig = figure(title)
         sp = plt.subplot(2,2,sp_ctr)
         sp.hist(arc_hist_total, bins=bins, alpha=0.5, color='blue', weights=1./len(arc_hist_total)*np.ones_like(arc_hist_total))
         sp.hist(data, bins=bins, color='green', alpha=0.5, weights=1./len(data)*np.ones_like(data))
@@ -235,44 +270,68 @@ if hist:
 #    sp_hist.legend(bbox_to_anchor=(1.2,1))
 
 
-    # Compare dipoles to quads
-    fig_dev = plt.figure()
-    fig_dev.canvas.set_window_title(title)
-    fig_dev.patch.set_facecolor('w')
-    fig_dev.subplots_adjust(left=.06, right=.84, top=.93, hspace=.38, wspace=.42)
+# Compare dipoles to quads
+fig_dev = figure('Compare devices')
+fig_dev.subplots_adjust(left=.06, right=.84, top=.93, hspace=.38, wspace=.42)
 
-    sp_dip = plt.subplot(2,2,1)
-    sp_quad = plt.subplot(2,2,3, sharex=sp_dip)
-    dip_list = []
-    quad_list = []
+# Logged data
+sp_dip = plt.subplot(2,2,1)
+sp_quad = plt.subplot(2,2,3)
+dip_list = []
+quad_list = []
 
-    ls_list = ['-', '--', '-.']
+ls_list = ['-', '--', '-.']
 
-    for var in variable_list:
-        for affix in affix_list:
-            if affix in var:
-                if 'D' in affix:
-                    dip_list.append(var)
-                elif 'Q' in affix:
-                    quad_list.append(var)
+for var in variable_list:
+    for affix in affix_list:
+        if affix in var:
+            if 'D' in affix:
+                dip_list.append(var)
+            elif 'Q' in affix:
+                quad_list.append(var)
 
-    for sp, dev_list, title in zip((sp_dip, sp_quad), (dip_list, quad_list), ('Dipoles', 'Quadrupoles')):
-        dev_list.sort()
-        for ctr, dev in enumerate(dev_list):
-            values = heatloads.data[:,heatloads.variables.index(dev)]
-            info = re_dev.search(dev).groups()
-            if info == ('33L5', 'D4') or info == ('33L5', 'D3'):
-                continue
-            color = ms.colorprog(affix_list.index(info[1]), affix_list)
-            ls = ls_list[cells.index(info[0])]
-            label = ''.join(info)
-            sp.plot(timestamps, values, label=label.replace('_',' '), lw=2., color=color, ls=ls)
-        sp.set_title(title)
-        sp.set_ylabel('Heat load [W]')
-        sp.legend(bbox_to_anchor=(1.2,1))
-        sp.set_ylim(-10,None)
-        sp.set_xlabel('Time [h]')
-        sp.grid(True)
+for sp, dev_list, title in zip((sp_dip, sp_quad), (dip_list, quad_list), ('Dipoles', 'Quadrupoles')):
+    dev_list.sort()
+    for ctr, dev in enumerate(dev_list):
+        index = heatloads.variables.index(dev)
+        values = heatloads.data[:,index]
+        info = re_dev.search(dev).groups()
+        if info == ('33L5', 'D4') or info == ('33L5', 'D3'):
+            continue
+        color = ms.colorprog(affix_list.index(info[1]), affix_list)
+        ls = ls_list[cells.index(info[0])]
+        label = ' '.join(info)
+        sp.plot(timestamps, values, label=label, lw=2., color=color, ls=ls)
+    sp.set_title(title+' logged')
+    sp.legend(bbox_to_anchor=(1.2,1))
+    sp.set_ylim(-10,None)
+    sp.set_ylabel('Heat load [W]')
+    sp.set_xlabel('Time [h]')
+    sp.grid(True)
+
+# Recalculated data
+
+sp_dip = plt.subplot(2,2,2)
+sp_quad = plt.subplot(2,2,4)
+for cell_ctr, cell in enumerate(cells):
+    ls = ls_list[cell_ctr]
+    for a_ctr, affix in enumerate(affix_list):
+        if cell == '33L5' and affix in ['D4', 'D3']:
+            continue
+        color = ms.colorprog(a_ctr, affix_list)
+        if affix == 'Q1':
+            sp_quad.plot(special_tt, special_hl[cell][affix], color=color, ls=ls, label=cell, lw=2)
+        else:
+            sp_dip.plot(special_tt, special_hl[cell][affix], color=color, ls=ls, label=cell+ ' ' + affix, lw=2)
+
+for sp, title in zip((sp_dip, sp_quad), ('Dipoles', 'Quadrupoles')):
+    sp.grid(True)
+    sp.set_title(title+' recalculated') 
+    sp.set_ylabel('Heat load [W]')
+    sp.set_xlabel('Time [h]')
+    sp.set_ylim(-10,None)
+    sp.legend(bbox_to_anchor=(1.2,1))
+
 
 
 # From large HL dict
@@ -294,15 +353,12 @@ if show_dict:
         for cell_ctr, cell in enumerate(cells):
             sp_ctr = cell_ctr % 3 + 1
             if sp_ctr == 1:
-                fig = plt.figure()
-                fig.canvas.set_window_title('HL dict' + title)
-                fig.patch.set_facecolor('w')
+                fig = figure('HL dict' + title)
                 fig.subplots_adjust(left=.06, right=.84, top=.93, hspace=.38, wspace=.42)
-                plt.suptitle(title, fontsize=25)
             sp = plt.subplot(3,1,sp_ctr, sharex=sp)
             sp.set_xlabel('Fill number')
             sp.set_ylabel('Heat load %s' % unit)
-            sp.set_title(cell)
+            sp.set_title(cell_title_dict[cell])
             sp.grid(True)
             names = [cell]
             labels = [cell]
@@ -328,5 +384,86 @@ if show_dict:
             sp.legend(bbox_to_anchor=(1.05,1))
             sp.set_ylim(*ylim)
             sp.grid(True)
+
+# Show details on input data variables
+if details:
+    import GasFlowHLCalculator.data_S45_details as dsd
+    from GasFlowHLCalculator.h5_storage import h5_dir
+    import GasFlowHLCalculator.compute_QBS_special as  cqs
+    import LHCMeasurementTools.myfilemanager as mfm
+
+    special_atd = mfm.h5_to_obj(h5_dir + 'special_cells/special_data_fill_%i.h5' % filln)
+    special_tt = (special_atd.timestamps - special_atd.timestamps[0])/3600.
+    special_vars = list(special_atd.variables)
+    # Mask first and last hour
+    mask = np.logical_and(special_tt > 1, special_tt < special_tt[-1] -1)
+    special_tt = special_tt[mask]
+
+    alternate_notation = {
+            '13L5': '12R4',
+            '33L5': '32R4',
+            '13R4': '13L5',
+            }
+
+    re_var = re.compile('^\w{4}_\w?(\d\d[RL]\d_TT\d{3})\.POSST$')
+    title = 'Fill %i temperature sensors' % filln
+    fig = figure(title)
+    fig.subplots_adjust(left=.06, right=.84, top=.93, hspace=.38, wspace=.42)
+    for cell_ctr, cell in enumerate(cells):
+        acell = alternate_notation[cell]
+        lists = {}
+        for key, item in dsd.__dict__.iteritems():
+            if type(item) is list and acell in key and ('Tin' in key or 'Tout' in key):
+                lists[key] = item
+        sp = plt.subplot(2,2,cell_ctr+1)
+        sp.set_ylabel('Temperature [K]')
+        sp.set_xlabel('Time [h]')
+        sp.grid(True)
+        sp.set_title(cell_title_dict[cell])
+        used_vars = set()
+        for cc, name in enumerate(sorted(lists.keys())):
+            ll = lists[name]
+            color = ms.colorprog(cc, lists)
+            for ctr, var in enumerate(ll):
+                if var not in used_vars:
+                    used_vars.add(var)
+                    if ctr == 0:
+                        label = name
+                    else:
+                        label = None
+                    ls = ls_list[ctr]
+                    row_ctr = special_vars.index(var)
+                    sp.plot(special_tt, special_atd.data[mask,row_ctr], lw=2, label=label, ls=ls, color=color)
+        sp.legend(bbox_to_anchor=(1.3,1))
+
+    # Separate hl for b1, b2
+    title = 'Fill %i separate beam screens' % filln
+    fig = figure(title)
+    fig.subplots_adjust(left=.06, right=.84, top=.93, hspace=.38, wspace=.42)
+
+    qbs_special = cqs.compute_qbs_special(special_atd, separate=True)
+    qbs_tt = (qbs_special['timestamps']-qbs_special['timestamps'][0])/3600.
+    for cell_ctr, cell in enumerate(cells):
+        sp_ctr = cell_ctr +1
+        sp = plt.subplot(2,2,sp_ctr, sharex=sp)
+        sp.set_title(cell_title_dict[cell])
+        sp.grid(True)
+        sp.set_xlabel('Time [h]')
+        sp.set_ylabel('Heat load [W]')
+    #    if filln == 5277 and cell == '13L5':
+    #        sp.set_ylim(-150, y_max)
+        sp2 = sp.twinx()
+        sp2.set_ylabel('Energy [TeV]')
+        sp2.plot(energy.t_stamps, energy.energy/1e3, c='black', lw=2., label='Energy')
+        
+        for actr,affix in enumerate(affix_list[1:]):
+            for bctr, beam in enumerate(('b1','b2')):
+                key = affix+'_'+beam
+                if key in qbs_special[cell]:
+                    color = ms.colorprog(actr, affix_list)
+                    ls = ['-','--'][bctr]
+                    sp.plot(qbs_tt, qbs_special[cell][key], ls=ls, lw=2., label=key, color=color)
+        sp.set_ylim(-10, None)
+        ms.comb_legend(sp,sp2,bbox_to_anchor=(1.3,1), fontsize=myfontsz)
 
 plt.show()
