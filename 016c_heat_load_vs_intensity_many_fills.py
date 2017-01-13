@@ -19,19 +19,21 @@ import HeatLoadCalculators.FillCalculator as fc
 ## Choose fills
 
 #reference fills
-# filln_list = [5026, 5219, 5433]
+filln_list = [5026, 5219, 5433]
 
 # BCMS fills (latest part of the year)
-filln_list = [5416, 5340, 5274]
+#filln_list = [5416, 5340, 5274]
 
 #  fills (start of BCMS)
-filln_list = [5076, 5069, 5071, 5073, 5076, 5080, 5083, 5091]
+#filln_list = [5076, 5069, 5071, 5073, 5076, 5080, 5083, 5091]
 
 # test this script
 #filln_list = [5219]
 
 ## Config
 savefig = False
+
+verbose_parse = True
 
 first_correct_filln = 4474
 output_folder = 'plots'
@@ -71,9 +73,9 @@ for i_fill, filln in enumerate(filln_list):
     colorfill = ms.colorprog(i_prog=i_fill, Nplots=len(filln_list))
     
     fill_dict = {}
-    fill_dict.update(tm.parse_timber_file('fill_basic_data_csvs/basic_data_fill_%d.csv'%filln, verbose=False))
-    fill_dict.update(tm.parse_timber_file('fill_heatload_data_csvs/heatloads_fill_%d.csv'%filln, verbose=False))
-    fill_dict.update(tm.parse_timber_file('fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv'%filln, verbose=False))
+    fill_dict.update(tm.parse_timber_file('fill_basic_data_csvs/basic_data_fill_%d.csv'%filln, verbose=verbose_parse))
+    fill_dict.update(tm.parse_timber_file('fill_heatload_data_csvs/heatloads_fill_%d.csv'%filln, verbose=verbose_parse))
+    fill_dict.update(tm.parse_timber_file('fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv'%filln, verbose=verbose_parse))
 
     colstr = {}
     colstr[1] = 'b'
