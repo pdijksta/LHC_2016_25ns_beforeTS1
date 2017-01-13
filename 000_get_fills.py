@@ -3,7 +3,7 @@ import LHCMeasurementTools.TimestampHelpers as th
 import LHCMeasurementTools.LHC_Fills as Fills
 
 t_start_string = '2016_05_08 00:00:00'
-t_stop_string = '2016_10_31 09:00:00'
+t_stop_string = '2016_12_29 09:00:00'
 
 t_start = th.localtime2unixstamp(t_start_string)
 t_stop = th.localtime2unixstamp(t_stop_string)
