@@ -19,6 +19,8 @@ import HeatLoadCalculators.impedance_heatload as ihl
 import HeatLoadCalculators.synchrotron_radiation_heatload as srhl 
 import HeatLoadCalculators.FillCalculator as fc
 
+import GasFlowHLCalculator.qbs_fill as qf
+
 parser = argparse.ArgumentParser(description='Plot the heat loads for one LHC fill')
 parser.add_argument('filln', metavar='FILLN', type=int, help='LHC fill number')
 parser.add_argument('--zeroat', metavar='T_0', type=float, help='Calculate offset at this point', default=None)
@@ -35,7 +37,10 @@ flag_average = not args.noaverage
 flag_fbct = args.fbct
 plot_model = not args.noplotmodel
 
-print '--> Processing fill %d'%filln
+myfontsz = 16
+use_recalculated = True
+pl.close('all')
+ms.mystyle_arial(fontsz=myfontsz, dist_tick_lab=8)
 
 blacklist = [\
 'QRLAA_33L5_QBS947_D4.POSST',
@@ -49,13 +54,11 @@ blacklist = [\
 ]
 
 beams_list = [1,2]
-
-
-arc_correction_factor_list = HL.arc_average_correction_factors()
 first_correct_filln = 4474
-
-
-myfontsz = 16
+arc_correction_factor_list = HL.arc_average_correction_factors()
+colstr = {}
+colstr[1] = 'b'
+colstr[2] = 'r'
 
 dict_hl_groups = {}
 dict_hl_groups['InnerTriplets_IR15'] = HL.variable_lists_heatloads['IT_IR1']+HL.variable_lists_heatloads['IT_IR5']
@@ -79,43 +82,28 @@ fill_dict = {}
 fill_dict.update(tm.parse_timber_file('fill_basic_data_csvs/basic_data_fill_%d.csv'%filln, verbose=False))
 fill_dict.update(tm.parse_timber_file('fill_heatload_data_csvs/heatloads_fill_%d.csv'%filln, verbose=False))
 fill_dict.update(tm.parse_timber_file('fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv'%filln, verbose=False))
+if use_recalculated:
+    fill_dict.update(qf.get_fill_dict(filln))
 
 dict_beam = fill_dict
 dict_fbct = fill_dict
-
-
-colstr = {}
-colstr[1] = 'b'
-colstr[2] = 'r'
-
-
 
 energy = Energy.energy(fill_dict, beam=1)
 
 t_fill_st = dict_fill_bmodes[filln]['t_startfill']
 t_fill_end = dict_fill_bmodes[filln]['t_endfill']
 t_fill_len = t_fill_end - t_fill_st
-
-
 t_min = dict_fill_bmodes[filln]['t_startfill']-0*60.
 t_max = dict_fill_bmodes[filln]['t_endfill']+0*60.
 
-
 t_ref=t_fill_st
 tref_string=time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime(t_ref))
-
-
-pl.close('all')
-ms.mystyle_arial(fontsz=myfontsz, dist_tick_lab=8)
-
-
 
 fbct_bx = {}
 bct_bx = {}
 blength_bx = {}
 
 for beam_n in beams_list:
-
     fbct_bx[beam_n] = FBCT(fill_dict, beam = beam_n)
     bct_bx[beam_n] = BCT(fill_dict, beam = beam_n)
     if flag_bunch_length: 
@@ -124,14 +112,11 @@ for beam_n in beams_list:
         blength_bx = None
 
 group_names = dict_hl_groups.keys()
-
 N_figures = len(group_names)
-
 sp1 = None
 for ii in xrange(N_figures):
     fig_h = pl.figure(ii, figsize=(12, 10))
     fig_h.patch.set_facecolor('w')
-
     
     sptotint = pl.subplot(3,1,1, sharex=sp1)
     sp1 = sptotint
@@ -143,7 +128,6 @@ for ii in xrange(N_figures):
     spenergy.plot((energy.t_stamps-t_ref)/3600., energy.energy/1e3, c='black', lw=2.)#, alpha=0.1)
     spenergy.set_ylabel('Energy [TeV]')
     spenergy.set_ylim(0,7)
-
 
     for beam_n in beams_list:
 
@@ -170,7 +154,6 @@ for ii in xrange(N_figures):
             hl_var_names.remove(varname)
 
     heatloads = SetOfHomogeneousNumericVariables(variable_list=hl_var_names, timber_variables=fill_dict)
-    #hl_model = SetOfHomogeneousNumericVariables(variable_list=HL.variable_lists_heatloads['MODEL'], timber_variables=fill_dict)
 
     # CORRECT ARC AVERAGES
     if group_name == 'Arcs' and filln < first_correct_filln:
@@ -179,8 +162,6 @@ for ii in xrange(N_figures):
             if varname not in blacklist:
                 hl_corr_factors.append(arc_correction_factor_list[ii])
         heatloads.correct_values(hl_corr_factors)
-
-
 
     if flag_average:
         hl_ts_curr, hl_aver_curr  = heatloads.mean()
@@ -226,13 +207,11 @@ for ii in xrange(N_figures):
         sphlcell.plot((hl_ts_curr-t_ref)/3600., hl_aver_curr-offset, 'k', lw=2, label='Average')
     sphlcell.set_ylabel('Heat load [W]')
 
-
     #~ sphlcell.set_xlabel('Time [h]')
     sphlcell.legend(prop={'size':myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
     sphlcell.grid('on')
     
     pl.subplots_adjust(right=0.7, wspace=0.30)
     fig_h.set_size_inches(15., 8.)
-
 
 pl.show()

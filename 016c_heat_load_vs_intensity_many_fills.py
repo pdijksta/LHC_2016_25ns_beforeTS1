@@ -16,6 +16,8 @@ import HeatLoadCalculators.impedance_heatload as ihl
 import HeatLoadCalculators.synchrotron_radiation_heatload as srhl 
 import HeatLoadCalculators.FillCalculator as fc
 
+import GasFlowHLCalculator.qbs_fill as qf
+
 ## Choose fills
 
 #reference fills
@@ -32,8 +34,8 @@ filln_list = [5026, 5219, 5433]
 
 ## Config
 savefig = False
-
-verbose_parse = True
+verbose_parse = False
+use_recalculated = True
 
 first_correct_filln = 4474
 output_folder = 'plots'
@@ -76,6 +78,9 @@ for i_fill, filln in enumerate(filln_list):
     fill_dict.update(tm.parse_timber_file('fill_basic_data_csvs/basic_data_fill_%d.csv'%filln, verbose=verbose_parse))
     fill_dict.update(tm.parse_timber_file('fill_heatload_data_csvs/heatloads_fill_%d.csv'%filln, verbose=verbose_parse))
     fill_dict.update(tm.parse_timber_file('fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv'%filln, verbose=verbose_parse))
+
+    if use_recalculated:
+        fill_dict.update(qf.get_fill_dict(filln))
 
     colstr = {}
     colstr[1] = 'b'
