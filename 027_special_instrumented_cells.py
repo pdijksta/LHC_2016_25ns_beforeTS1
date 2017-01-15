@@ -16,8 +16,6 @@ import LHCMeasurementTools.mystyle as ms
 import LHCMeasurementTools.myfilemanager as mfm
 import LHCMeasurementTools.LHC_Energy as Energy
 import LHCMeasurementTools.savefig as sf
-sf.pdijksta(0,0)
-sys.exit()
 
 import GasFlowHLCalculator.qbs_fill as qf
 from GasFlowHLCalculator.data_qbs import arc_index, data_qbs
@@ -36,7 +34,7 @@ parser.add_argument('--nore', help='Show recomputed data', action='store_true')
 parser.add_argument('--nolog', help='Do not show logged data', action='store_true')
 parser.add_argument('--hist', help='Show histograms', action='store_true')
 parser.add_argument('--details', help='Show details of input data', action='store_true')
-parser.add_argument('--pds', help='Save fig in pdijksta folder', action='store_true')
+parser.add_argument('--pdsave', help='Save fig in pdijksta folder', action='store_true')
 args = parser.parse_args()
 
 filln = args.filln
@@ -47,7 +45,6 @@ recompute = not args.nore
 logged = not args.nolog
 hist = args.hist
 details = args.details
-pds = args.pds
 
 myfontsz = 16
 ms.mystyle_arial(fontsz=myfontsz, dist_tick_lab=8)
@@ -141,16 +138,9 @@ arc_hist_dict = lhc_hist_dict['arcs']
 
 # Plots
 figs = []
-def figure(title):
-    fig = plt.figure()
-    fig.canvas.set_window_title(title)
-    figs.append((fig, title))
-    fig.patch.set_facecolor('w')
-    plt.suptitle(title, fontsize=20)
-    return fig
 
 title = 'Special instrumented cells for fill %i' % filln
-fig = figure(title)
+fig = ms.figure(title, figs)
 fig.subplots_adjust(left=.06, right=.88, top=.93, hspace=.38, wspace=.42)
 sp = None
 
@@ -228,7 +218,7 @@ if hist:
         sp_ctr = ctr % 4 + 1
         if sp_ctr == 1:
             title = 'Fill %i: Heat loads at %.1f hours' % (filln, avg_time_hrs)
-            fig = figure(title)
+            fig = ms.figure(title, figs)
         sp = plt.subplot(2,2,sp_ctr)
         sp.hist(arc_hist_total, bins=bins, alpha=0.5, color='blue', weights=1./len(arc_hist_total)*np.ones_like(arc_hist_total))
         sp.hist(data, bins=bins, color='green', alpha=0.5, weights=1./len(data)*np.ones_like(data))
@@ -251,8 +241,8 @@ if hist:
             sp.legend(bbox_to_anchor=(1.2,1))
 
 #    # 1 plot for all sectors
-#    fig = plt.figure()
 #    title = 'Fill %i at %.1f h: LHC Arcs histograms' % (filln, avg_time_hrs)
+#    fig = plt.figure()
 #    fig.canvas.set_window_title(title)
 #    fig.patch.set_facecolor('w')
 #    sp_hist = plt.subplot(2,2,1)
@@ -271,7 +261,7 @@ if hist:
 
 
 # Compare dipoles to quads
-fig_dev = figure('Compare devices')
+fig_dev = ms.figure('Compare devices', figs)
 fig_dev.subplots_adjust(left=.06, right=.84, top=.93, hspace=.38, wspace=.42)
 
 # Logged data
@@ -353,7 +343,7 @@ if show_dict:
         for cell_ctr, cell in enumerate(cells):
             sp_ctr = cell_ctr % 3 + 1
             if sp_ctr == 1:
-                fig = figure('HL dict' + title)
+                fig = ms.figure('HL dict' + title, figs)
                 fig.subplots_adjust(left=.06, right=.84, top=.93, hspace=.38, wspace=.42)
             sp = plt.subplot(3,1,sp_ctr, sharex=sp)
             sp.set_xlabel('Fill number')
@@ -407,7 +397,7 @@ if details:
 
     re_var = re.compile('^\w{4}_\w?(\d\d[RL]\d_TT\d{3})\.POSST$')
     title = 'Fill %i temperature sensors' % filln
-    fig = figure(title)
+    fig = ms.figure(title, figs)
     fig.subplots_adjust(left=.06, right=.84, top=.93, hspace=.38, wspace=.42)
     for cell_ctr, cell in enumerate(cells):
         acell = alternate_notation[cell]
@@ -438,7 +428,7 @@ if details:
 
     # Separate hl for b1, b2
     title = 'Fill %i separate beam screens' % filln
-    fig = figure(title)
+    fig = ms.figure(title, figs)
     fig.subplots_adjust(left=.06, right=.84, top=.93, hspace=.38, wspace=.42)
 
     qbs_special = cqs.compute_qbs_special(special_atd, separate=True)
@@ -466,4 +456,9 @@ if details:
         sp.set_ylim(-10, None)
         ms.comb_legend(sp,sp2,bbox_to_anchor=(1.3,1), fontsize=myfontsz)
 
-plt.show()
+
+if args.pdsave:
+    for fig in figs:
+        sf.pdijksta(fig)
+else:
+    plt.show()
