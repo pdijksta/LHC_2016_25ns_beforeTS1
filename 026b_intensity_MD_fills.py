@@ -61,6 +61,8 @@ title = 'Heat load and bunch intensity'
 fig = plt.figure()
 fig.canvas.set_window_title(title)
 fig.patch.set_facecolor('w')
+fig.subplots_adjust(left=.09, bottom=.07, right=.88, top=.92, wspace=.42, hspace=.19)
+
 sp = plt.subplot(2,2,1)
 sp.set_ylabel('Total heat load [W/hcell]')
 sp.set_xlabel('Bunch intensity [p/bunch]')
@@ -75,7 +77,8 @@ for arc_ctr, arc in enumerate(arc_list):
     sp.plot(xx_fit, np.poly1d(fit)(xx_fit), color=color, lw=3)
     if compare_to_logged:
         fit = np.polyfit(intensity_list, hl_logged[:,arc_ctr],1)
-        sp.plot(xx_fit, np.poly1d(fit)(xx_fit),'--', color=color, label=label+' logged')
+        sp.plot(intensity_list, hl_logged[:,arc_ctr],'.', label=label+' logged', markersize=7, marker='x', color=color)
+        sp.plot(xx_fit, np.poly1d(fit)(xx_fit),'--', color=color)
 
 sp.legend(bbox_to_anchor=(1.3,1))
 sp.set_xlim(0,None)
@@ -91,5 +94,35 @@ for cell_ctr in xrange(len(hl_qbs[0,:])):
     sp.plot(xx_fit, np.poly1d(fit)(xx_fit), lw=1)
 sp.set_xlim(0,None)
 #sp.set_ylim(0,None)
-plt.show()
 
+# Special instrumented dipoles
+good_cells = ['13L5', '13R4']
+dip_list = ['D2', 'D3', 'D4']
+
+sp = plt.subplot(2,2,2)
+sp.set_title('Special cell dipoles')
+sp.set_ylabel('Total heat load [W]')
+sp.set_xlabel('Bunch intensity [p/bunch]')
+xx_dict = {}
+for filln in fill_list:
+    qbs_ob = qf.special_qbs_fill(filln)
+    index = list(hl_dict['filln']).index(filln)
+    tt = hl_dict[moment]['t_stamps'][index]
+    tt_index = np.argmin(np.abs(qbs_ob['timestamps'] - tt))
+    for cell in good_cells:
+        for dip in dip_list:
+            label = cell+' '+dip
+            if label not in xx_dict:
+                xx_dict[label] = []
+            xx_dict[label].append(qbs_ob[cell][dip][tt_index])
+
+
+for ctr, (label, value) in enumerate(xx_dict.iteritems()):
+    fit = np.polyfit(intensity_list, value,1)
+    color = ms.colorprog(ctr, xx_dict)
+    sp.plot(intensity_list, value, '.', label=label, markersize=7, color=color, marker='o')
+    sp.plot(xx_fit, np.poly1d(fit)(xx_fit), '-', color=color, lw=3)
+sp.legend(bbox_to_anchor=(1.3,1))
+
+
+plt.show()
