@@ -136,7 +136,7 @@ for ctr, (fill, modelz) in enumerate(zip(fills, model_hl)):
 index = -1
 filln = fills[index]
 qbs_ob = qf.compute_qbs_fill(filln)
-qbs_avg_arc = qf.compute_qbs_arc_avg(qbs_ob)
+qbs_avg_arc = qf.compute_qbs_arc_avg(qbs_ob).data
 avg_time = dict_100ns[moment]['t_stamps'][index] 
 mask_mean = np.abs(qbs_ob.timestamps - avg_time) < 360
 qbs_avg_arc = np.mean(qbs_avg_arc[mask_mean,:], axis=0)
