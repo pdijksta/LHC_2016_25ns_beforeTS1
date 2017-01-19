@@ -326,7 +326,7 @@ for sp, title in zip((sp_dip, sp_quad), ('Dipoles', 'Quadrupoles')):
 
 # From large HL dict
 if show_dict:
-    from LHCMeasurementTools.LHC_Heat_load_dict import main_dict as hl_dict, mask_dict, main_dict_2016
+    from hl_dicts.LHC_Heat_load_dict import hl_dict, mask_dict, main_dict_2016
 
     mask = hl_dict['stable_beams']['n_bunches']['b1'] > 1000
     ff_2016 = main_dict_2016['filln'][0]

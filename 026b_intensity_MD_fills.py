@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import LHCMeasurementTools.myfilemanager as mfm
 import LHCMeasurementTools.mystyle as ms
 import LHCMeasurementTools.TimberManager as tm
-from LHCMeasurementTools.LHC_Heat_load_dict import main_dict as hl_dict
+from hl_dicts.LHC_Heat_load_dict import main_dict as hl_dict
 
 import GasFlowHLCalculator.qbs_fill as qf
 from GasFlowHLCalculator.data_QBS_LHC import arc_index, arc_list, Cell_list

@@ -10,7 +10,7 @@ import LHCMeasurementTools.mystyle as ms
 from LHCMeasurementTools.TimberManager import timb_timestamp2float_UTC
 from LHCMeasurementTools.mystyle import colorprog
 import LHCMeasurementTools.TimestampHelpers as TH
-from LHCMeasurementTools.LHC_Heat_load_dict import mask_dict, main_dict
+from hl_dicts.LHC_Heat_load_dict import mask_dict, main_dict
 #moment = 'start_ramp'
 moment = 'stop_squeeze'
 #moment = 'stable_beams'

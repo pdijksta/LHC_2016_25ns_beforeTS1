@@ -5,7 +5,7 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 
-import LHCMeasurementTools.LHC_Heat_load_dict as hld
+import hl_dicts.LHC_Heat_load_dict as hld
 import LHCMeasurementTools.LHC_Heatloads as HL
 import LHCMeasurementTools.mystyle as ms
 

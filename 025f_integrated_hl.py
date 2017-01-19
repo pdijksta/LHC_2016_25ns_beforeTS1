@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import re
 
-from LHCMeasurementTools.LHC_Heat_load_dict import main_dict
+from hl_dicts.LHC_Heat_load_dict import main_dict
 from LHCMeasurementTools.mystyle import colorprog
 
 plt.close('all')
