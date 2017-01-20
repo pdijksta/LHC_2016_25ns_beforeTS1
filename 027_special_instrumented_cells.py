@@ -460,5 +460,6 @@ if details:
 if args.pdsave:
     for fig in figs:
         sf.pdijksta(fig)
+        plt.close(fig)
 else:
     plt.show()

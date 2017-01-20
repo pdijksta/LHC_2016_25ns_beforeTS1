@@ -24,7 +24,7 @@ binwidth = 20
 parser = argparse.ArgumentParser()
 parser.add_argument('fill', metavar='FILL', help='LHC fill number', type=int)
 parser.add_argument('--nodp', help='Do not calculate pressure drop.', action='store_true')
-parser.add_argument('--nohist', help='Do not show histograms.', action='store_false')
+parser.add_argument('--nohist', help='Do not show histograms.', action='store_true')
 parser.add_argument('--pdsave', help='Save plots in pdijksta folder.', action='store_true')
 args = parser.parse_args()
 filln = args.fill
@@ -150,8 +150,10 @@ if show_hist:
     sp_hist.legend(bbox_to_anchor=(1.2,1))
 
 if args.pdsave:
+    print('There are %i figs' % len(figs))
     for fig in figs:
         sf.pdijksta(fig)
+        plt.close(fig)
 else:
     plt.show()
 
