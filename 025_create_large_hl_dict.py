@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division, print_function
 import sys
 import cPickle
 import re
@@ -18,9 +18,13 @@ from LHCMeasurementTools.LHC_Energy import energy
 import HeatLoadCalculators.impedance_heatload as hli
 import HeatLoadCalculators.synchrotron_radiation_heatload as hls
 
+import GasFlowHLCalculator.qbs_fill as qf
+
 # Config
 subtract_offset = True
+use_logfile = True
 hrs_after_sb = 24
+hl_dict_dir = './hl_dicts/'
 
 parser = argparse.ArgumentParser()
 parser.add_argument('year', type=int)
@@ -28,7 +32,7 @@ args = parser.parse_args()
 year = args.year
 
 if year == 2016:
-    pkl_file_name = './large_heat_load_dict_2016_2.pkl'
+    pkl_file_name = hl_dict_dir + 'large_heat_load_dict_2016_2.pkl'
     fills_bmodes_file = './fills_and_bmodes.pkl'
     csv_file_names = ['fill_basic_data_csvs/basic_data_fill_%d.csv',
             'fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv']
@@ -37,7 +41,7 @@ if year == 2016:
     base_folder = './'
     child_folders = ['./']
 elif year == 2015:
-    pkl_file_name = './large_heat_load_dict_2015_2.pkl'
+    pkl_file_name = hl_dict_dir + 'large_heat_load_dict_2015_2.pkl'
     base_folder = '/afs/cern.ch/project/spsecloud/'
     child_folders = ['LHC_2015_PhysicsAfterTS2/', 'LHC_2015_PhysicsAfterTS3/', 'LHC_2015_Scrubbing50ns/', 'LHC_2015_IntRamp50ns/', 'LHC_2015_IntRamp25ns/']
     fills_bmodes_file = base_folder + child_folders[0] + 'fills_and_bmodes.pkl'
@@ -107,11 +111,12 @@ def cast_to_na_recursively(dictionary, assure_length=None):
         elif type(item) is list:
             dictionary[key] = np.array(item)
             if assure_length is not None and len(dictionary[key]) != assure_length:
-                print('Expected length: %i, Actual length: %i for key %s' % (assure_length, len(dictionary[key]), key))
+                log_print('Expected length: %i, Actual length: %i for key %s' % (assure_length, len(dictionary[key]), key))
         else:
-            print('Unexpected type in dictionary for key %s' % key)
+            log_print('Unexpected type in dictionary for key %s' % key)
 
 def data_integration(timestamps, values):
+    # Trapezoidal integration
     output = 0.
     for i in xrange(len(values)-1):
         output += (timestamps[i+1] - timestamps[i])*(values[i] + values[i+1])/2.
@@ -119,6 +124,14 @@ def data_integration(timestamps, values):
 
 def data_integration_ob(ob, offset=0.):
     return data_integration(ob.t_stamps, ob.values - offset)
+
+logfile = pkl_file_name + '.log'
+def log_print(*args, **kwargs):
+    if use_logfile: 
+        with open(logfile, 'a') as f:
+            print(*args, file=f, **kwargs)
+    print(*args, **kwargs)
+log_print('%s\n' % time.ctime())
 
 # Time keys
 time_key_list = ['start_ramp', 'stop_squeeze', 'stable_beams']
@@ -146,11 +159,12 @@ sr_calc = hls.HeatLoadCalculatorSynchrotronRadiationLHCArc()
 # Main loop
 output_dict = {}
 for filln in fills_0:
-    # Check if this fill reached stable beams
     process_fill = True
+
+    # Check if this fill reached stable beams
     t_stable_beams = fills_and_bmodes[filln]['t_start_STABLE']
     if t_stable_beams == -1:
-        print('Fill %i did not reach stable beams.' % filln)
+        log_print('Fill %i did not reach stable beams.' % filln)
         process_fill = False
 
     # Check if all files exist and store their paths
@@ -166,7 +180,7 @@ for filln in fills_0:
                     this_file_exist = True
                     break
             if not this_file_exist:
-                print('Fill %i: %s does not exist' % (filln,f))
+                log_print('Fill %i: %s does not exist' % (filln,f))
                 process_fill = False
                 break
 
@@ -180,15 +194,23 @@ for filln in fills_0:
                 elif '.h5' in f:
                     fill_dict.update(tm.timber_variables_from_h5(f))
                 else:
-                    print('Fill %i: Error: Unknown file type for %s.' % f)
+                    log_print('Fill %i: Error: Unknown file type for %s.' % f)
                     process_fill = False
         except IOError as e:
-            print('Fill %i is skipped: %s!' % (filln,e))
+            log_print('Fill %i is skipped: %s!' % (filln,e))
+            process_fill = False
+        # Use recalculated data
+        try:
+            qbs_ob = qf.compute_qbs_fill(filln)
+            fill_dict.update(qf.get_fill_dict(qbs_ob))
+            lhc_hl_dict = qf.lhc_arcs(qbs_ob)
+        except IOError as e:
+            log_print('No recomputed data for fill %i: %s!' % (filln,e))
             process_fill = False
 
     # Main part - obtain and store the variables of interest
     if process_fill:
-        print('Fill %i is being processed.' % filln)
+        log_print('Fill %i is being processed.' % filln)
 
         ## Allocate objects that are used later
         en_ob = energy(fill_dict, beam=1)
@@ -211,7 +233,7 @@ for filln in fills_0:
             offset_dict = {}
             t_begin_inj = fills_and_bmodes[filln]['t_start_INJPROT']
             if t_begin_inj == -1:
-                print('Warning: Offset for fill %i could not be calculated as t_start_INJPROT is not in the fills and bmodes file!' % filln)
+                log_print('Warning: Offset for fill %i could not be calculated as t_start_INJPROT is not in the fills and bmodes file!' % filln)
                 this_subtract_offset = False
             else:
                 for var in all_heat_load_vars:
@@ -352,12 +374,18 @@ for filln in fills_0:
                     try:
                         hl = hl_ob.nearest_older_sample(tt) - offset
                     except:
-                        print('Fill %i: Warning: No hl data for %s' % (filln,var))
+                        log_print('Fill %i: Warning: No hl data for %s' % (filln,var))
                         hl = 0
                 else:
                     hl = 0
                 key = hl_var_dict[var]['key']
                 this_add_to_dict(hl, ['heat_load', key])
+            # Recalculated cells
+            for arc, atd in lhc_hl_dict.iteritems():
+                values = atd.nearest_older_sample(tt)
+                for cell_ctr, cell in enumerate(atd.variables):
+                    this_add_to_dict(values[cell_ctr], ['heat_load_re', arc, cell])
+
 
 n_fills = len(output_dict['filln'])
 cast_to_na_recursively(output_dict, assure_length=n_fills)
@@ -365,3 +393,4 @@ cast_to_na_recursively(output_dict, assure_length=n_fills)
 # Dump this dict
 with open(pkl_file_name, 'w') as f:
     cPickle.dump(output_dict, f, protocol=-1)
+log_print('\nSuccess\n')
