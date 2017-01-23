@@ -26,12 +26,13 @@ use_logfile = True
 hrs_after_sb = 24
 hl_dict_dir = './hl_dicts/'
 
+# Arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('year', type=int)
 args = parser.parse_args()
-year = args.year
 
-if year == 2016:
+# Config again
+if args.year == 2016:
     pkl_file_name = hl_dict_dir + 'large_heat_load_dict_2016_3.pkl'
     fills_bmodes_file = './fills_and_bmodes.pkl'
     csv_file_names = ['fill_basic_data_csvs/basic_data_fill_%d.csv',
@@ -40,8 +41,8 @@ if year == 2016:
     filling_pattern_csv = './fill_basic_data_csvs/injection_scheme.csv'
     base_folder = './'
     child_folders = ['./']
-elif year == 2015:
-    pkl_file_name = hl_dict_dir + 'large_heat_load_dict_2015_3.pkl'
+elif args.year == 2015:
+    pkl_file_name = hl_dict_dir + 'large_heat_load_dict_2015_4.pkl'
     base_folder = '/afs/cern.ch/project/spsecloud/'
     child_folders = ['LHC_2015_PhysicsAfterTS2/', 'LHC_2015_PhysicsAfterTS3/', 'LHC_2015_Scrubbing50ns/', 'LHC_2015_IntRamp50ns/', 'LHC_2015_IntRamp25ns/']
     fills_bmodes_file = base_folder + child_folders[0] + 'fills_and_bmodes.pkl'
@@ -194,19 +195,29 @@ for filln in fills_0:
                 elif '.h5' in f:
                     fill_dict.update(tm.timber_variables_from_h5(f))
                 else:
-                    log_print('Fill %i: Error: Unknown file type for %s.' % f)
-                    process_fill = False
+                    raise ValueError('Fill %i: Error: Unknown file type for %s.' % f)
         except IOError as e:
             log_print('Fill %i is skipped: %s!' % (filln,e))
             process_fill = False
-        # Use recalculated data
+
+    # Use recalculated data
+    if process_fill:
         try:
             qbs_ob = qf.compute_qbs_fill(filln)
+        except IOError as e:
+            log_print('Fill %i: No recomputed data: %s!' % (filln,e))
+            # Suspicious fails of read attempts -> try once more
+            time.sleep(5)
+            try:
+                qbs_ob = qf.compute_qbs_fill(filln)
+            except IOError as e:
+                process_fill = False
+            else:
+                log_print('Fill %i: Second recomputed data read attempt succeeded!' % filln) 
+
+        if process_fill:
             fill_dict.update(qf.get_fill_dict(qbs_ob))
             lhc_hl_dict = qf.lhc_arcs(qbs_ob)
-        except IOError as e:
-            log_print('No recomputed data for fill %i: %s!' % (filln,e))
-            process_fill = False
 
     # Main part - obtain and store the variables of interest
     if process_fill:
@@ -385,7 +396,6 @@ for filln in fills_0:
                 values = atd.nearest_older_sample(tt)
                 for cell_ctr, cell in enumerate(atd.variables):
                     this_add_to_dict(values[cell_ctr], ['heat_load_re', arc, cell])
-
 
 n_fills = len(output_dict['filln'])
 cast_to_na_recursively(output_dict, assure_length=n_fills)
