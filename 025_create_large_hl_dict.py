@@ -32,7 +32,7 @@ args = parser.parse_args()
 year = args.year
 
 if year == 2016:
-    pkl_file_name = hl_dict_dir + 'large_heat_load_dict_2016_2.pkl'
+    pkl_file_name = hl_dict_dir + 'large_heat_load_dict_2016_3.pkl'
     fills_bmodes_file = './fills_and_bmodes.pkl'
     csv_file_names = ['fill_basic_data_csvs/basic_data_fill_%d.csv',
             'fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv']
@@ -41,7 +41,7 @@ if year == 2016:
     base_folder = './'
     child_folders = ['./']
 elif year == 2015:
-    pkl_file_name = hl_dict_dir + 'large_heat_load_dict_2015_2.pkl'
+    pkl_file_name = hl_dict_dir + 'large_heat_load_dict_2015_3.pkl'
     base_folder = '/afs/cern.ch/project/spsecloud/'
     child_folders = ['LHC_2015_PhysicsAfterTS2/', 'LHC_2015_PhysicsAfterTS3/', 'LHC_2015_Scrubbing50ns/', 'LHC_2015_IntRamp50ns/', 'LHC_2015_IntRamp25ns/']
     fills_bmodes_file = base_folder + child_folders[0] + 'fills_and_bmodes.pkl'
@@ -349,10 +349,10 @@ for filln in fills_0:
             for beam in (1,2):
                 beam_int = int_bx[beam]
                 n_bunches = n_bunches_bx[beam]
-                this_blength = this_blength_bx[beam]
-                if n_bunches != 0 and this_blength != 0 and not zero:
-                    imp = imp_calc.calculate_P_Wm(beam_int/n_bunches, this_blength, fill_energy, n_bunches)
-                    sr = sr_calc.calculate_P_Wm(beam_int/n_bunches, this_blength, fill_energy, n_bunches)
+                sigma_t = this_blength_bx[beam]/4.
+                if n_bunches != 0 and sigma_t != 0 and not zero:
+                    imp = imp_calc.calculate_P_Wm(beam_int/n_bunches, sigma_t, fill_energy, n_bunches)
+                    sr = sr_calc.calculate_P_Wm(beam_int/n_bunches, sigma_t, fill_energy, n_bunches)
                 else:
                     imp, sr = 0, 0
                 tot_imp += imp
