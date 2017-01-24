@@ -31,9 +31,18 @@ parser = argparse.ArgumentParser()
 parser.add_argument('year', type=int)
 args = parser.parse_args()
 
+# Find new version
+re_version = re.compile('large_heat_load_dict_%i_(\d+).pkl' % args.year)
+files = os.listdir(hl_dict_dir)
+matches = filter(None, map(re_version.match, files))
+versions = map(lambda x: int(x.group(1)), matches)
+version = max(versions)+1
+
 # Config again
+pkl_file_name = hl_dict_dir + 'large_heat_load_dict_%i_%i.pkl' % (args.year, version)
+latest_pkl = hl_dict_dir + 'large_heat_load_dict_%i_latest.pkl' % args.year
+
 if args.year == 2016:
-    pkl_file_name = hl_dict_dir + 'large_heat_load_dict_2016_3.pkl'
     fills_bmodes_file = './fills_and_bmodes.pkl'
     csv_file_names = ['fill_basic_data_csvs/basic_data_fill_%d.csv',
             'fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv']
@@ -42,7 +51,6 @@ if args.year == 2016:
     base_folder = './'
     child_folders = ['./']
 elif args.year == 2015:
-    pkl_file_name = hl_dict_dir + 'large_heat_load_dict_2015_4.pkl'
     base_folder = '/afs/cern.ch/project/spsecloud/'
     child_folders = ['LHC_2015_PhysicsAfterTS2/', 'LHC_2015_PhysicsAfterTS3/', 'LHC_2015_Scrubbing50ns/', 'LHC_2015_IntRamp50ns/', 'LHC_2015_IntRamp25ns/']
     fills_bmodes_file = base_folder + child_folders[0] + 'fills_and_bmodes.pkl'
@@ -116,9 +124,14 @@ def cast_to_na_recursively(dictionary, assure_length=None):
         else:
             log_print('Unexpected type in dictionary for key %s' % key)
 
+filln, var = -1, '-1'
 def data_integration(timestamps, values):
     # Trapezoidal integration
     output = 0.
+    nan = np.isnan(values)
+    if np.sum(nan) > 0:
+        log_print('Fill %i: There have been nan values for var %s' % (filln,var))
+        values[nan] = 0.
     for i in xrange(len(values)-1):
         output += (timestamps[i+1] - timestamps[i])*(values[i] + values[i+1])/2.
     return output
@@ -403,4 +416,6 @@ cast_to_na_recursively(output_dict, assure_length=n_fills)
 # Dump this dict
 with open(pkl_file_name, 'w') as f:
     cPickle.dump(output_dict, f, protocol=-1)
+os.remove(latest_pkl)
+os.symlink(os.path.basename(pkl_file_name), latest_pkl)
 log_print('\nSuccess\n')
