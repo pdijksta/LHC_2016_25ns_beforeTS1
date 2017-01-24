@@ -122,16 +122,15 @@ if show_hist:
             title = 'Fill %i: Heat loads at %.1f hours' % (filln, avg_time_hrs)
             fig = ms.figure(title, figs)
         sp = plt.subplot(2,2,sp_ctr)
-        sp.hist(arc_hist_total, bins=bins, alpha=0.5, color='blue', weights=1./len(arc_hist_total)*np.ones_like(arc_hist_total), label='LHC')
-        sp.hist(data, bins=bins, color='green', alpha=0.5, weights=1./len(data)*np.ones_like(data), label='Arc')
-        sp.axvline(np.mean(data), lw=2., color='green')
-        sp.axvline(np.mean(arc_hist_total), lw=2., color='blue')
+        sp.hist(data, bins=bins, color='green', alpha=0.5, weights=1./len(data)*np.ones_like(data), label=None)
+        sp.axvline(np.mean(data), lw=2., color='green', label='Mean Arc')
+        sp.axvline(np.mean(arc_hist_total), lw=2., color='blue', label='Mean LHC')
         sp.grid('on')
         sp.set_xlabel('Heat load [W]')
         sp.set_ylabel('# Half cells (normalized)')
         sp.set_title('Arc %s' % arc)
-    if sp_ctr == 2:
-        sp.legend(bbox_to_anchor=(1.2,1))
+        if sp_ctr == 2:
+            sp.legend(bbox_to_anchor=(1.2,1))
 
     # 1 plot for all sectors
     title = 'Fill %i at %.1f h: LHC Arcs histograms' % (filln, avg_time_hrs)

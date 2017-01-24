@@ -12,7 +12,6 @@ import LHCMeasurementTools.TimberManager as tm
 from hl_dicts.LHC_Heat_load_dict import main_dict as hl_dict
 
 import GasFlowHLCalculator.qbs_fill as qf
-from GasFlowHLCalculator.data_QBS_LHC import arc_index, arc_list, Cell_list
 from GasFlowHLCalculator.data_qbs import data_qbs, arc_index, arc_list
 Cell_list = data_qbs.Cell_list
 
@@ -46,7 +45,7 @@ for fill_ctr, filln in enumerate(fill_list):
     qbs_ob = qf.compute_qbs_fill(filln)
     qbs_arc_avg = qf.compute_qbs_arc_avg(qbs_ob)
     tt_index = np.argmin(np.abs(qbs_ob.timestamps - tt))
-    hl_data[fill_ctr,:] = qbs_arc_avg[tt_index,:]
+    hl_data[fill_ctr,:] = qbs_arc_avg.data[tt_index,:]
     hl_qbs.append(qbs_ob.data[tt_index,:])
     if compare_to_logged:
         for arc_ctr, arc in enumerate(arc_list):

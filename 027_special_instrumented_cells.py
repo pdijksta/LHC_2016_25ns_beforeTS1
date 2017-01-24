@@ -379,7 +379,7 @@ if show_dict:
 if details:
     import GasFlowHLCalculator.data_S45_details as dsd
     from GasFlowHLCalculator.h5_storage import h5_dir
-    import GasFlowHLCalculator.compute_QBS_special as  cqs
+    import GasFlowHLCalculator.compute_QBS_special as cqs
     import LHCMeasurementTools.myfilemanager as mfm
 
     special_atd = mfm.h5_to_obj(h5_dir + 'special_cells/special_data_fill_%i.h5' % filln)
@@ -403,14 +403,17 @@ if details:
         acell = alternate_notation[cell]
         lists = {}
         for key, item in dsd.__dict__.iteritems():
-            if type(item) is list and acell in key and ('Tin' in key or 'Tout' in key):
-                lists[key] = item
+            if type(item) is list and acell in key:
+                if ('Tin' in key or 'Tout' in key):
+                    lists[key] = item
+
         sp = plt.subplot(2,2,cell_ctr+1)
         sp.set_ylabel('Temperature [K]')
         sp.set_xlabel('Time [h]')
         sp.grid(True)
         sp.set_title(cell_title_dict[cell])
         used_vars = set()
+        # Temperatures
         for cc, name in enumerate(sorted(lists.keys())):
             ll = lists[name]
             color = ms.colorprog(cc, lists)
@@ -440,8 +443,6 @@ if details:
         sp.grid(True)
         sp.set_xlabel('Time [h]')
         sp.set_ylabel('Heat load [W]')
-    #    if filln == 5277 and cell == '13L5':
-    #        sp.set_ylim(-150, y_max)
         sp2 = sp.twinx()
         sp2.set_ylabel('Energy [TeV]')
         sp2.plot(energy.t_stamps, energy.energy/1e3, c='black', lw=2., label='Energy')

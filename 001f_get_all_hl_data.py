@@ -1,5 +1,6 @@
 import os
 import cPickle as pickle
+import argparse
 
 import LHCMeasurementTools.LHC_Fills as Fills
 from LHCMeasurementTools.LHC_Fill_LDB_Query import save_variables_and_pickle
@@ -12,7 +13,12 @@ max_fill_hrs = 35
 blacklist = []
 blacklist.append(4948) # 116 hour long fill, exceeds memory
 blacklist.append(5488) # 40 hour long fill, also exceeds memory
-year = 2015
+parser = argparse.ArgumentParser()
+parser.add_argument('-r', help='reversed', action='store_true')
+parser.add_argument('year', help='2015 or 2016', type=int)
+
+args = parser.parse_args()
+year = args.year
 
 # File names
 h5_dir_0 = '/eos/user/l/lhcscrub/timber_data_h5/cryo_heat_load_data/'
@@ -44,7 +50,7 @@ for variable_file, h5_dir, saved_pkl, file_name, temp_filepath, temp_file, h5_fi
     else:
         saved_dict = {}
 
-    fill_sublist = sorted(dict_fill_bmodes.keys(), reverse=True)
+    fill_sublist = sorted(dict_fill_bmodes.keys(), reverse=args.r)
     fill_sublist_2 = []
     for fill in fill_sublist:
         if fill in saved_dict or os.path.isfile(h5_file % fill):
@@ -75,7 +81,7 @@ for variable_file, h5_dir, saved_pkl, file_name, temp_filepath, temp_file, h5_fi
         print('Aligning data for fill %i' % filln)
         htd_ob = SetOfHomogeneousNumericVariables(varlist, temp_file % filln).aligned_object(dt_seconds)
         print('Creating h5 file for fill %i' % filln)
-        mfm.obj_to_h5(htd_ob, h5_file % filln)
+        mfm.aligned_obj_to_h5(htd_ob, h5_file % filln)
 
         if os.path.isfile(h5_file % filln) and os.path.getsize(h5_file % filln) > 500:
             os.remove(temp_file % filln)
