@@ -1,6 +1,6 @@
 # This Script is intended to be used for PyEcloud benchmark simulations.
 # The heat load on the arc is calculated using LHC data for a given fill and time.
-# Comparing these to the heatloads from PyEcloud simulations will then allow for 
+# Comparing these to the heatloads from PyEcloud simulations will then allow for
 #   an estimation of the SEY parameter.
 # It has been extended to also list the heat load on the Q6 quadrupoles.
 
@@ -21,7 +21,7 @@ from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumeri
 import LHCMeasurementTools.mystyle as ms
 
 import HeatLoadCalculators.impedance_heatload as ihl
-import HeatLoadCalculators.synchrotron_radiation_heatload as srhl 
+import HeatLoadCalculators.synchrotron_radiation_heatload as srhl
 import HeatLoadCalculators.FillCalculator as fc
 
 # CONFIG
@@ -83,7 +83,7 @@ arc_keys_list = HL.variable_lists_heatloads['AVG_ARC']
 quad_keys_list = HL.variable_lists_heatloads['Q6s_IR1'] \
         + HL.variable_lists_heatloads['Q6s_IR5'] \
         + HL.variable_lists_heatloads['Q6s_IR2'] \
-        + HL.variable_lists_heatloads['Q6s_IR8'] 
+        + HL.variable_lists_heatloads['Q6s_IR8']
 imp_label = 'Imp'
 sr_label = 'SR'
 model_label = imp_label + '+' + sr_label
@@ -170,7 +170,7 @@ def add_to_output_dict(main_key, input_key, avg_heatload, avg_heatload_sigma, of
         this_hl_dict[main_key]['Options'] = this_hl_dict_options
 
     this_hl_dict[main_key][output_key] = {\
-            'Heat_load': avg_heatload, 
+            'Heat_load': avg_heatload,
             'Sigma': avg_heatload_sigma,
             'Offset': offset
             }
@@ -216,7 +216,7 @@ for ctr, time_of_interest in enumerate(time_of_interest_arr):
 if store_pickle:
     print('Storing into pickle.')
     if not os.path.isfile(pickle_name):
-        heatload_dict = {} 
+        heatload_dict = {}
     else :
         with open(pickle_name, 'r') as hl_dict_file:
             heatload_dict = cPickle.load(hl_dict_file)
@@ -225,7 +225,7 @@ if store_pickle:
         for key_new in this_hl_dict:
             if key_new in heatload_dict:
                 del heatload_dict[key_new]
-    
+
     filln_str = str(filln)
     t_o_i_str = str(time_of_interest)
     main_key = filln_str + ' ' + t_o_i_str
@@ -233,7 +233,7 @@ if store_pickle:
     heatload_dict.update(this_hl_dict)
     with open(pickle_name, 'w') as hl_dict_file:
         cPickle.dump(heatload_dict, hl_dict_file, protocol=-1)
-    
+
 # PLOTS
 ms.mystyle(20)
 
@@ -287,7 +287,7 @@ if show_plot:
             norm_factor = 1.
         xx_time = (heatloads.timber_variables[key].t_stamps-t_ref)/3600.
         yy_heatloads = (heatloads.timber_variables[key].values - offset_dict[key]) / norm_factor
-        
+
         sp.plot(xx_time, yy_heatloads, '-', lw=2., label=output_key, color=color)
 
     # Heat loads model
@@ -318,11 +318,11 @@ if show_heatload_contributions:
     first_key = quad_keys_list[0]
     quad_time_ref = heatloads.timber_variables[first_key].t_stamps
     quad_time_ref_hrs = (quad_time_ref - t_ref)/3600.
-    
+
     # Impedance per m and cell
     interp_imp = np.interp(quad_time_ref, hl_imped_fill.t_stamps, hl_imped_fill.heat_load_calculated_total)
     imp_cell = interp_imp * len_cell
-    
+
     # SR per m and cell
     interp_sr = np.interp(quad_time_ref, hl_sr_fill.t_stamps, hl_sr_fill.heat_load_calculated_total)
     sr_cell = interp_sr * len_cell
@@ -334,10 +334,10 @@ if show_heatload_contributions:
         len_quad = get_len_norm_factor(key)
         # Quad heat load, not normalized
         interp_hl = np.interp(quad_time_ref, heatloads.timber_variables[key].t_stamps-offset_dict[key], heatloads.timber_variables[key].values) - interp_imp * len_quad
-        
+
         summed_hl += interp_hl
         summed_len += len_quad
-    
+
     avg_quad_hl = summed_hl/summed_len * len_quad_cell
 
     # Plots
@@ -374,7 +374,7 @@ if show_heatload_contributions:
         top = np.copy(imp_cell)
         sp.fill_between(quad_time_ref_hrs, bottom, top, label='Impedance', alpha=0.5, color='r')
         bottom = np.copy(top)
-        
+
         # SR
         top += sr_cell
         sp.fill_between(quad_time_ref_hrs, bottom, top, label='SR', alpha=0.5, color='b')

@@ -11,12 +11,12 @@ import LHCMeasurementTools.LHC_Energy as Energy
 import LHCMeasurementTools.mystyle as ms
 from LHCMeasurementTools.LHC_FBCT import FBCT
 from LHCMeasurementTools.LHC_BCT import BCT
-from LHCMeasurementTools.LHC_BQM import filled_buckets, blength
+from LHCMeasurementTools.LHC_BQM import blength
 import LHCMeasurementTools.LHC_Heatloads as HL
 from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumericVariables
 
 import HeatLoadCalculators.impedance_heatload as ihl
-import HeatLoadCalculators.synchrotron_radiation_heatload as srhl 
+import HeatLoadCalculators.synchrotron_radiation_heatload as srhl
 import HeatLoadCalculators.FillCalculator as fc
 
 import GasFlowHLCalculator.qbs_fill as qf
@@ -30,7 +30,7 @@ parser.add_argument('--fbct', help='Show fbct intensity, too!', action='store_tr
 parser.add_argument('--noplotmodel', help='Do not plot the model heat load', action='store_true')
 args = parser.parse_args()
 
-filln = args.filln 
+filln = args.filln
 t_zero = args.zeroat
 flag_bunch_length = not args.noblength
 flag_average = not args.noaverage
@@ -106,7 +106,7 @@ blength_bx = {}
 for beam_n in beams_list:
     fbct_bx[beam_n] = FBCT(fill_dict, beam = beam_n)
     bct_bx[beam_n] = BCT(fill_dict, beam = beam_n)
-    if flag_bunch_length: 
+    if flag_bunch_length:
         blength_bx[beam_n] = blength(fill_dict, beam = beam_n)
     else:
         blength_bx = None
@@ -117,7 +117,7 @@ sp1 = None
 for ii in xrange(N_figures):
     fig_h = pl.figure(ii, figsize=(12, 10))
     fig_h.patch.set_facecolor('w')
-    
+
     sptotint = pl.subplot(3,1,1, sharex=sp1)
     sp1 = sptotint
     if flag_bunch_length:
@@ -179,7 +179,7 @@ for ii in xrange(N_figures):
             else:
                 label += st + ' '
         label = label[:-1]
-        
+
         sphlcell.plot((heatloads.timber_variables[kk].t_stamps-t_ref)/3600, heatloads.timber_variables[kk].values-offset,
             '-', color=colorcurr, lw=2., label=label)#.split('_QBS')[0])
 
@@ -190,16 +190,16 @@ for ii in xrange(N_figures):
         hl_imped_fill = fc.HeatLoad_calculated_fill(fill_dict, hli_calculator, bct_dict=bct_bx, fbct_dict=fbct_bx, blength_dict=blength_bx)
         hl_sr_fill = fc.HeatLoad_calculated_fill(fill_dict, hlsr_calculator, bct_dict=bct_bx, fbct_dict=fbct_bx, blength_dict=blength_bx)
         label='Imp.+SR\n(recalc.)'
-        sphlcell.plot((hl_imped_fill.t_stamps-t_ref)/3600, 
-            (hl_imped_fill.heat_load_calculated_total+hl_sr_fill.heat_load_calculated_total)*HL.magnet_length['AVG_ARC'][0], 
+        sphlcell.plot((hl_imped_fill.t_stamps-t_ref)/3600,
+            (hl_imped_fill.heat_load_calculated_total+hl_sr_fill.heat_load_calculated_total)*HL.magnet_length['AVG_ARC'][0],
             '--', color='grey', lw=2., label=label)
-        
+
         #~ kk = 'LHC.QBS_CALCULATED_ARC.TOTAL'
         #~ label='Imp.+SR'
         #~ sphlcell.plot((hl_model.timber_variables[kk].t_stamps-t_ref)/3600., hl_model.timber_variables[kk].values,
             #~ '--', color='grey', lw=2., label=label)
 
-    if flag_average: 
+    if flag_average:
         if t_zero is not None:
             offset = np.interp(t_ref+t_zero*3600, hl_ts_curr, hl_aver_curr)
         else:
@@ -210,7 +210,7 @@ for ii in xrange(N_figures):
     #~ sphlcell.set_xlabel('Time [h]')
     sphlcell.legend(prop={'size':myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
     sphlcell.grid('on')
-    
+
     pl.subplots_adjust(right=0.7, wspace=0.30)
     fig_h.set_size_inches(15., 8.)
 

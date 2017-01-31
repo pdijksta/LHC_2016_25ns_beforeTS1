@@ -1,5 +1,4 @@
 from __future__ import division
-import sys
 import os
 import argparse
 import cPickle as pickle
@@ -7,7 +6,6 @@ import cPickle as pickle
 import numpy as np
 import matplotlib.pyplot as plt
 
-import LHCMeasurementTools.myfilemanager as mfm
 import LHCMeasurementTools.TimberManager as tm
 import LHCMeasurementTools.mystyle as ms
 import LHCMeasurementTools.LHC_Heatloads as HL
@@ -20,7 +18,7 @@ import GasFlowHLCalculator.qbs_fill as qf
 
 colstr = {1: 'b', 2:'r'}
 binwidth = 20
- 
+
 parser = argparse.ArgumentParser()
 parser.add_argument('fill', metavar='FILL', help='LHC fill number', type=int)
 parser.add_argument('--nodp', help='Do not calculate pressure drop.', action='store_true')

@@ -1,18 +1,13 @@
 from __future__ import division
-import sys
-import os
-import cPickle as pickle
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-import LHCMeasurementTools.myfilemanager as mfm
 import LHCMeasurementTools.mystyle as ms
-import LHCMeasurementTools.TimberManager as tm
 from hl_dicts.LHC_Heat_load_dict import main_dict as hl_dict
 
 import GasFlowHLCalculator.qbs_fill as qf
-from GasFlowHLCalculator.data_qbs import data_qbs, arc_index, arc_list
+from GasFlowHLCalculator.data_qbs import data_qbs, arc_list
 Cell_list = data_qbs.Cell_list
 
 plt.close('all')
@@ -89,6 +84,8 @@ sp.set_xlabel('Bunch intensity [p/bunch]')
 sp.set_title('Cells')
 sp.grid(True)
 for cell_ctr in xrange(len(hl_qbs[0,:])):
+    if np.any(np.isnan(hl_qbs[:,cell_ctr])):
+        continue
     fit = np.polyfit(intensity_list,hl_qbs[:,cell_ctr],1)
     sp.plot(xx_fit, np.poly1d(fit)(xx_fit), lw=1)
 sp.set_xlim(0,None)

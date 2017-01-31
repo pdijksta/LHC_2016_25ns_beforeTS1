@@ -103,7 +103,7 @@ for arc_ctr, arc in enumerate(hld.arc_list):
             label = 'Subtracted model hl'
         else:
             label = None
-        sp.plot(modelz[0], hl_arr[1]-modelz[1]*arc_length, '.--', label=label, color=color) 
+        sp.plot(modelz[0], hl_arr[1]-modelz[1]*arc_length, '.--', label=label, color=color)
     sp.legend(bbox_to_anchor=(1.2,1))
 
 # For each fill
@@ -128,7 +128,7 @@ for ctr, (fill, modelz) in enumerate(zip(fills, model_hl)):
             label = 'Subtracted model hl'
         else:
             label = None
-        sp.plot(modelz[0], hl_arr[1]-modelz[1]*arc_length, '.--', label=label, color=color) 
+        sp.plot(modelz[0], hl_arr[1]-modelz[1]*arc_length, '.--', label=label, color=color)
     if sp_ctr == 2:
         sp.legend(bbox_to_anchor=(1.2,1))
 
@@ -137,15 +137,14 @@ index = -1
 filln = fills[index]
 qbs_ob = qf.compute_qbs_fill(filln)
 qbs_avg_arc = qf.compute_qbs_arc_avg(qbs_ob).data
-avg_time = dict_100ns[moment]['t_stamps'][index] 
+avg_time = dict_100ns[moment]['t_stamps'][index]
 mask_mean = np.abs(qbs_ob.timestamps - avg_time) < 360
 qbs_avg_arc = np.mean(qbs_avg_arc[mask_mean,:], axis=0)
 
 lhc_histograms = qf.lhc_histograms(qbs_ob, avg_time,0.1*3600,False)
 for arc_ctr, arc in enumerate(qf.arc_list):
     sp_ctr = arc_ctr % 4 + 1
-    arc_str = arc[-2:]
-    data = lhc_histograms['arcs'][arc_str]
+    data = lhc_histograms['arcs'][arc]
     if sp_ctr == 1:
         fig = plt.figure()
         title = 'Fill %i' % filln
@@ -160,7 +159,7 @@ for arc_ctr, arc in enumerate(qf.arc_list):
     for ctr, hl in enumerate(data):
         sp.bar(ctr, hl)
     sp.axhline(qbs_avg_arc[arc_ctr])
-    sp.axhline(dict_100ns[moment]['heat_load']['S'+arc_str][index], color='green')
+    sp.axhline(dict_100ns[moment]['heat_load'][arc][index], color='green')
 
 
 plt.show()

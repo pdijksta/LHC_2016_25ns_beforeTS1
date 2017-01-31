@@ -1,17 +1,13 @@
 from __future__ import division
-import sys
-import os
 import cPickle as pickle
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-import LHCMeasurementTools.myfilemanager as mfm
 import LHCMeasurementTools.mystyle as ms
 import LHCMeasurementTools.TimberManager as tm
 
 import GasFlowHLCalculator.qbs_fill as qf
-from GasFlowHLCalculator.data_QBS_LHC import arc_index, arc_list, Cell_list
 from GasFlowHLCalculator.data_qbs import data_qbs, arc_index, arc_list
 Cell_list = data_qbs.Cell_list
 Sector_list = data_qbs.Sector_list
@@ -50,7 +46,6 @@ bins = np.arange(round_to(arc_hist_total.min(),binwidth)-binwidth, round_to(arc_
 ls_list = ['-', '--', '-.', ':']
 
 for arc_ctr, arc in enumerate(arc_list):
-    arc_nr = arc[-2:]
     sp_ctr = arc_ctr % 4 + 1
     if sp_ctr == 1:
         fig = plt.figure()
@@ -60,11 +55,11 @@ for arc_ctr, arc in enumerate(arc_list):
     sp = plt.subplot(2,2,sp_ctr)
     sp.set_xlabel('Heat load [W]')
     sp.set_ylabel('# Half cells')
-    sp.set_title('Arc %s' % arc_nr)
+    sp.set_title('Arc %s' % arc)
     sp.grid(True)
 
     for ls, filln in zip(ls_list,fill_list):
-        arc_hist = dict_dict[filln]['arcs'][arc_nr]
+        arc_hist = dict_dict[filln]['arcs'][arc]
         data = np.histogram(arc_hist, bins=bins)[0]
         sp.plot(bins[:-1], data, label='Fill %i' % filln, lw=2., drawstyle='steps', ls=ls)
 
@@ -93,7 +88,6 @@ sp.legend(bbox_to_anchor=(1.1,1))
 n_sps = 4
 colors = ['red', 'green', 'blue']
 for arc_ctr, arc in enumerate(arc_list):
-    arc_nr = arc[-2:]
     sp_ctr = arc_ctr % n_sps + 1
     if sp_ctr == 1:
         fig = plt.figure()
@@ -102,14 +96,14 @@ for arc_ctr, arc in enumerate(arc_list):
         fig.patch.set_facecolor('w')
 
     sp = plt.subplot(n_sps,1,sp_ctr)
-    sp.set_title('Arc %s' % arc_nr)
+    sp.set_title('Arc %s' % arc)
     sp.set_ylabel('Heat load [W]')
-    
+
     first, last = arc_index[arc_ctr,:]
     cell_list = []
     xx_list = []
     for color, (fill_ctr, filln) in zip(colors, enumerate(fill_list)):
-        data = dict_dict[filln]['arcs'][arc_nr]
+        data = dict_dict[filln]['arcs'][arc]
         for cell_ctr, cell_hl in enumerate(data):
             xx = cell_ctr*4 + fill_ctr
             if fill_ctr == 0:
@@ -121,7 +115,7 @@ for arc_ctr, arc in enumerate(arc_list):
             else:
                 label = None
             sp.bar(xx, cell_hl, color=color, label=label)
-    
+
     sp.set_xticks(xx_list)
     sp.set_xticklabels(cell_list,fontsize=10)
     if sp_ctr == 1:
@@ -157,11 +151,10 @@ sp.set_xlabel('Heat load fill %i' % fill_list[0])
 sp.set_ylabel('Reduction in heat load in fill %i' % fill_list[-1])
 sp.grid(True)
 for arc_ctr, arc in enumerate(arc_list):
-    arc_nr = arc[-2:]
-    data_0 = dict_dict[fill_list[0]]['arcs'][arc_nr]
-    data_1 = dict_dict[fill_list[-1]]['arcs'][arc_nr]
+    data_0 = dict_dict[fill_list[0]]['arcs'][arc]
+    data_1 = dict_dict[fill_list[-1]]['arcs'][arc]
     color = ms.colorprog(arc_ctr, arc_list)
-    sp.plot(data_0, data_0-data_1,'.', color=color, label='Arc %s' % arc_nr, markersize=7.)
+    sp.plot(data_0, data_0-data_1,'.', color=color, label='Arc %s' % arc, markersize=7.)
 sp.legend(bbox_to_anchor=(1.1,1))
 
 plt.show()
