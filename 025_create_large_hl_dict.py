@@ -1,5 +1,4 @@
 from __future__ import division, print_function
-import sys
 import cPickle
 import re
 import time
@@ -33,14 +32,14 @@ args = parser.parse_args()
 
 # Find new version
 re_version = re.compile('large_heat_load_dict_%i_(\d+).pkl' % args.year)
-files = os.listdir(hl_dict_dir)
-matches = filter(None, map(re_version.match, files))
+matches = filter(None, map(re_version.match, os.listdir(hl_dict_dir)))
 versions = map(lambda x: int(x.group(1)), matches)
 version = max(versions)+1
 
 # Config again
 pkl_file_name = hl_dict_dir + 'large_heat_load_dict_%i_%i.pkl' % (args.year, version)
 latest_pkl = hl_dict_dir + 'large_heat_load_dict_%i_latest.pkl' % args.year
+logfile = pkl_file_name + '.log'
 
 if args.year == 2016:
     fills_bmodes_file = './fills_and_bmodes.pkl'
@@ -102,16 +101,15 @@ def output_key(input_key, strict=True):
 def add_to_dict(dictionary, value, keys, zero=False):
     if zero:
         value = 0
-    this_dict = dictionary
     for nn, key in enumerate(keys):
         if nn == len(keys)-1:
-            if key not in this_dict:
-                this_dict[key] = []
-            this_dict[key].append(value)
+            if key not in dictionary:
+                dictionary[key] = []
+            dictionary[key].append(value)
         else:
-            if key not in this_dict:
-                this_dict[key] = {}
-            this_dict = this_dict[key]
+            if key not in dictionary:
+                dictionary[key] = {}
+            dictionary = dictionary[key]
 
 def cast_to_na_recursively(dictionary, assure_length=None):
     for key, item in dictionary.iteritems():
@@ -124,7 +122,6 @@ def cast_to_na_recursively(dictionary, assure_length=None):
         else:
             log_print('Unexpected type in dictionary for key %s' % key)
 
-filln, var = -1, '-1'
 def data_integration(timestamps, values):
     # Trapezoidal integration
     output = 0.
@@ -139,13 +136,13 @@ def data_integration(timestamps, values):
 def data_integration_ob(ob, offset=0.):
     return data_integration(ob.t_stamps, ob.values - offset)
 
-logfile = pkl_file_name + '.log'
 def log_print(*args, **kwargs):
-    if use_logfile: 
+    if use_logfile:
         with open(logfile, 'a') as f:
             print(*args, file=f, **kwargs)
     print(*args, **kwargs)
-log_print('%s\n' % time.ctime())
+log_print('%s' % time.ctime())
+log_print('Offset is subtracted?: %s' % subtract_offset)
 
 # Time keys
 time_key_list = ['start_ramp', 'stop_squeeze', 'stable_beams']
@@ -226,7 +223,7 @@ for filln in fills_0:
             except IOError as e:
                 process_fill = False
             else:
-                log_print('Fill %i: Second recomputed data read attempt succeeded!' % filln) 
+                log_print('Fill %i: Second recomputed data read attempt succeeded!' % filln)
 
         if process_fill:
             fill_dict.update(qf.get_fill_dict(qbs_ob))
@@ -308,7 +305,7 @@ for filln in fills_0:
                 tt = t_stop_squeeze
             else:
                 tt = t_stable_beams + (kk-2)*3600
-            # zero controls if calculations for output are performed. 
+            # zero controls if calculations for output are performed.
             # If zero is True, then only 0s are stored in the output_dict
             if tt > end_time:
                 zero = True
@@ -404,6 +401,7 @@ for filln in fills_0:
                     hl = 0
                 key = hl_var_dict[var]['key']
                 this_add_to_dict(hl, ['heat_load', key])
+                this_add_to_dict(hl, ['hl_offset', key])
             # Recalculated cells
             for arc, atd in lhc_hl_dict.iteritems():
                 values = atd.nearest_older_sample(tt)
