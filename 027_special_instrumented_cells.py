@@ -12,13 +12,11 @@ import LHCMeasurementTools.TimberManager as tm
 import LHCMeasurementTools.mystyle as ms
 import LHCMeasurementTools.LHC_Heatloads as HL
 from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumericVariables
-import LHCMeasurementTools.mystyle as ms
-import LHCMeasurementTools.myfilemanager as mfm
 import LHCMeasurementTools.LHC_Energy as Energy
 import LHCMeasurementTools.savefig as sf
 
 import GasFlowHLCalculator.qbs_fill as qf
-from GasFlowHLCalculator.data_qbs import arc_index, data_qbs
+from GasFlowHLCalculator.data_qbs import data_qbs
 Cell_list = data_qbs.Cell_list
 
 # Config
@@ -94,15 +92,23 @@ for cell in cells:
         else:
             hl_dict_logged[cell]['Cell'] = var
 
-with open('fills_and_bmodes.pkl', 'rb') as fid:
-    dict_fill_bmodes = pickle.load(fid)
+if filln < 4857:
+    with open('/afs/cern.ch/project/spsecloud/LHC_2015_PhysicsAfterTS2/fills_and_bmodes.pkl') as fid:
+        dict_fill_bmodes = pickle.load(fid)
+else:
+    with open('fills_and_bmodes.pkl', 'rb') as fid:
+        dict_fill_bmodes = pickle.load(fid)
 
 if avg_time_hrs == -1.:
     avg_time_hrs = (dict_fill_bmodes[filln]['t_start_STABLE'] - dict_fill_bmodes[filln]['t_startfill'])/3600.
 
 fill_dict = {}
-fill_dict.update(tm.parse_timber_file('./fill_basic_data_csvs/basic_data_fill_%d.csv' % filln, verbose=False))
-fill_dict.update(tm.parse_timber_file('./fill_heatload_data_csvs/heatloads_fill_%d.csv' % filln, verbose=False))
+if filln < 4857:
+    fill_dict.update(tm.parse_timber_file('/afs/cern.ch/project/spsecloud/LHC_2015_PhysicsAfterTS2/fill_csvs/fill_%d.csv' % filln, verbose=False))
+    fill_dict.update(tm.parse_timber_file('/afs/cern.ch/project/spsecloud/LHC_2015_PhysicsAfterTS2/heatloads_fill_h5s/heatloads_all_fill_%i.h5' % filln, verbose=False))
+else:
+    fill_dict.update(tm.parse_timber_file('./fill_basic_data_csvs/basic_data_fill_%d.csv' % filln, verbose=False))
+    fill_dict.update(tm.parse_timber_file('./fill_heatload_data_csvs/heatloads_fill_%d.csv' % filln, verbose=False))
 
 energy = Energy.energy(fill_dict, beam=1)
 energy.t_stamps = (energy.t_stamps - energy.t_stamps[0])/3600.
@@ -133,7 +139,7 @@ qbs_tt = (qbs_ob.timestamps - qbs_ob.timestamps[0])/3600.
 atd_mask_mean = np.abs(qbs_tt - avg_time_hrs) < avg_pm_hrs
 
 lhc_hist_dict = qf.lhc_histograms(qbs_ob, avg_time_hrs, avg_pm_hrs)
-arc_hist_total = lhc_hist_dict['total'] 
+arc_hist_total = lhc_hist_dict['total']
 arc_hist_dict = lhc_hist_dict['arcs']
 
 # Plots
@@ -159,7 +165,7 @@ for cell_ctr, cell in enumerate(cells):
     sp2 = sp.twinx()
     sp2.set_ylabel('Energy [TeV]')
     sp2.plot(energy.t_stamps, energy.energy/1e3, c='black', lw=2., label='Energy')
-    
+
     summed, summed_re = 0., 0.
     for ctr, affix in enumerate(affix_list):
         var = cell_vars[affix]
@@ -203,7 +209,7 @@ sp.set_title('LHC cell heat load - all arcs')
 sp.grid(True)
 sp.set_xlabel('Time [h]')
 sp.set_ylabel('Heat load [W]')
-sp.hist(arc_hist_total, bins=bins, alpha=0.5, color='blue') 
+sp.hist(arc_hist_total, bins=bins, alpha=0.5, color='blue')
 colors=['red', 'green', 'orange', 'black']
 for cell_ctr, cell in enumerate(cells_and_new):
     mean = np.mean(qbs_ob.data[atd_mask_mean,cell_index_dict[cell]])
@@ -316,7 +322,7 @@ for cell_ctr, cell in enumerate(cells):
 
 for sp, title in zip((sp_dip, sp_quad), ('Dipoles', 'Quadrupoles')):
     sp.grid(True)
-    sp.set_title(title+' recalculated') 
+    sp.set_title(title+' recalculated')
     sp.set_ylabel('Heat load [W]')
     sp.set_xlabel('Time [h]')
     sp.set_ylim(-10,None)
@@ -446,7 +452,7 @@ if details:
         sp2 = sp.twinx()
         sp2.set_ylabel('Energy [TeV]')
         sp2.plot(energy.t_stamps, energy.energy/1e3, c='black', lw=2., label='Energy')
-        
+
         for actr,affix in enumerate(affix_list[1:]):
             for bctr, beam in enumerate(('b1','b2')):
                 key = affix+'_'+beam
