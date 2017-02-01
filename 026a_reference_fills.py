@@ -8,9 +8,9 @@ import LHCMeasurementTools.mystyle as ms
 import LHCMeasurementTools.TimberManager as tm
 
 import GasFlowHLCalculator.qbs_fill as qf
-from GasFlowHLCalculator.data_qbs import data_qbs, arc_index, arc_list
-Cell_list = data_qbs.Cell_list
-Sector_list = data_qbs.Sector_list
+from GasFlowHLCalculator.config_qbs import config_qbs, arc_index, arc_list
+Cell_list = config_qbs.Cell_list
+Sector_list = config_qbs.Sector_list
 
 
 plt.close('all')

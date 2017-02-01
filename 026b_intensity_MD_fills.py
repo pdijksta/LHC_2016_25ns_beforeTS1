@@ -7,8 +7,8 @@ import LHCMeasurementTools.mystyle as ms
 from hl_dicts.LHC_Heat_load_dict import main_dict as hl_dict
 
 import GasFlowHLCalculator.qbs_fill as qf
-from GasFlowHLCalculator.data_qbs import data_qbs, arc_list
-Cell_list = data_qbs.Cell_list
+from GasFlowHLCalculator.config_qbs import config_qbs, arc_list
+Cell_list = config_qbs.Cell_list
 
 plt.close('all')
 ms.mystyle()
@@ -47,7 +47,7 @@ for fill_ctr, filln in enumerate(fill_list):
             sector = 'S' + arc[-2:]
             hl_logged[fill_ctr, arc_ctr] = hl_dict[moment]['heat_load'][sector][index]
 hl_qbs = np.array(hl_qbs)
-mask_arc = np.array(data_qbs.Type_list) == 'ARC'
+mask_arc = np.array(config_qbs.Type_list) == 'ARC'
 hl_qbs = hl_qbs[:,mask_arc]
 
 
