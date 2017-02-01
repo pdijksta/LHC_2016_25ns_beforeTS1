@@ -182,15 +182,13 @@ for filln in fills_0:
     if process_fill:
         this_files = []
         for f in csv_file_names+h5_file_names:
-            this_file_exist = False
             f = f % filln
             for child in child_folders:
                 path = base_folder + child + f
                 if os.path.isfile(path):
                     this_files.append(path)
-                    this_file_exist = True
                     break
-            if not this_file_exist:
+            else:
                 log_print('Fill %i: %s does not exist' % (filln,f))
                 process_fill = False
                 break
@@ -212,18 +210,19 @@ for filln in fills_0:
 
     # Use recalculated data
     if process_fill:
-        try:
-            qbs_ob = qf.compute_qbs_fill(filln)
-        except IOError as e:
-            log_print('Fill %i: No recomputed data: %s!' % (filln,e))
-            # Suspicious fails of read attempts -> try once more
-            time.sleep(5)
+        n_tries = 0
+        while n_tries < 5:
             try:
                 qbs_ob = qf.compute_qbs_fill(filln)
+                break
             except IOError as e:
-                process_fill = False
-            else:
-                log_print('Fill %i: Second recomputed data read attempt succeeded!' % filln)
+                log_print('Fill %i: No recomputed data: %s!' % (filln,e))
+                # Suspicious fails of read attempts -> try once more
+                time.sleep(5)
+                n_tries += 1
+        else:
+            process_fill = False
+            log_print('Fill %i: Recomputed data read attempt failed!' % filln)
 
         if process_fill:
             fill_dict.update(qf.get_fill_dict(qbs_ob))
