@@ -16,8 +16,8 @@ import LHCMeasurementTools.LHC_Energy as Energy
 import LHCMeasurementTools.savefig as sf
 
 import GasFlowHLCalculator.qbs_fill as qf
-from GasFlowHLCalculator.data_qbs import data_qbs
-Cell_list = data_qbs.Cell_list
+from GasFlowHLCalculator.config_qbs import config_qbs
+Cell_list = config_qbs.Cell_list
 
 # Config
 avg_pm_hrs = 0.1
