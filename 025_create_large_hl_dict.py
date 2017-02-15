@@ -21,7 +21,6 @@ import GasFlowHLCalculator.qbs_fill as qf
 
 # Config
 subtract_offset = True
-use_logfile = True
 hrs_after_sb = 24
 hl_dict_dir = './hl_dicts/'
 
@@ -42,13 +41,13 @@ latest_pkl = hl_dict_dir + 'large_heat_load_dict_%i_latest.pkl' % args.year
 logfile = pkl_file_name + '.log'
 
 if args.year == 2016:
-    fills_bmodes_file = './fills_and_bmodes.pkl'
+    base_folder = '/afs/cern.ch/work/l/lhcscrub/LHC_2016_25ns_beforeTS1/'
+    child_folders = ['./']
+    fills_bmodes_file = base_folder + '/fills_and_bmodes.pkl'
     csv_file_names = ['fill_basic_data_csvs/basic_data_fill_%d.csv',
             'fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv']
     h5_file_names = ['heatloads_fill_h5s/heatloads_all_fill_%i.h5']
-    filling_pattern_csv = './fill_basic_data_csvs/injection_scheme.csv'
-    base_folder = './'
-    child_folders = ['./']
+    filling_pattern_csv = base_folder + './fill_basic_data_csvs/injection_scheme.csv'
 elif args.year == 2015:
     base_folder = '/afs/cern.ch/project/spsecloud/'
     child_folders = ['LHC_2015_PhysicsAfterTS2/', 'LHC_2015_PhysicsAfterTS3/', 'LHC_2015_Scrubbing50ns/', 'LHC_2015_IntRamp50ns/', 'LHC_2015_IntRamp25ns/']
@@ -137,9 +136,8 @@ def data_integration_ob(ob, offset=0.):
     return data_integration(ob.t_stamps, ob.values - offset)
 
 def log_print(*args, **kwargs):
-    if use_logfile:
-        with open(logfile, 'a') as f:
-            print(*args, file=f, **kwargs)
+    with open(logfile, 'a') as f:
+        print(*args, file=f, **kwargs)
     print(*args, **kwargs)
 log_print('%s' % time.ctime())
 log_print('Offset is subtracted?: %s' % subtract_offset)
@@ -174,8 +172,12 @@ for filln in fills_0:
 
     # Check if this fill reached stable beams
     t_stable_beams = fills_and_bmodes[filln]['t_start_STABLE']
+    t_begin_inj = fills_and_bmodes[filln]['t_start_INJPROT']
     if t_stable_beams == -1:
         log_print('Fill %i did not reach stable beams.' % filln)
+        process_fill = False
+    elif t_begin_inj == -1:
+        log_print('Warning: Offset for fill %i could not be calculated as t_start_INJPROT is not in the fills and bmodes file!' % filln)
         process_fill = False
 
     # Check if all files exist and store their paths
@@ -251,9 +253,7 @@ for filln in fills_0:
         if subtract_offset:
             this_subtract_offset = True
             offset_dict = {}
-            t_begin_inj = fills_and_bmodes[filln]['t_start_INJPROT']
             if t_begin_inj == -1:
-                log_print('Warning: Offset for fill %i could not be calculated as t_start_INJPROT is not in the fills and bmodes file!' % filln)
                 this_subtract_offset = False
             else:
                 for var in all_heat_load_vars:
