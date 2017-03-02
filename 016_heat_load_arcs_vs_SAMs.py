@@ -14,6 +14,7 @@ from LHCMeasurementTools.LHC_BCT import BCT
 from LHCMeasurementTools.LHC_BQM import blength
 import LHCMeasurementTools.LHC_Heatloads as HL
 from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumericVariables
+import LHCMeasurementTools.savefig as sf
 
 import HeatLoadCalculators.impedance_heatload as ihl
 import HeatLoadCalculators.synchrotron_radiation_heatload as srhl
@@ -28,6 +29,7 @@ parser.add_argument('--noblength', help='Do not show a plot with bunch length vs
 parser.add_argument('--noaverage', help='Do not show an average heat load.', action='store_true')
 parser.add_argument('--fbct', help='Show fbct intensity, too!', action='store_true')
 parser.add_argument('--noplotmodel', help='Do not plot the model heat load', action='store_true')
+parser.add_argument('--savefig', help='Save figures in pdijksta dir', action='store_true')
 args = parser.parse_args()
 
 filln = args.filln
@@ -80,10 +82,11 @@ with open('fills_and_bmodes.pkl', 'rb') as fid:
 
 fill_dict = {}
 fill_dict.update(tm.parse_timber_file('fill_basic_data_csvs/basic_data_fill_%d.csv'%filln, verbose=False))
-fill_dict.update(tm.parse_timber_file('fill_heatload_data_csvs/heatloads_fill_%d.csv'%filln, verbose=False))
 fill_dict.update(tm.parse_timber_file('fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv'%filln, verbose=False))
 if use_recalculated:
     fill_dict.update(qf.get_fill_dict(filln))
+else:
+    fill_dict.update(tm.parse_timber_file('fill_heatload_data_csvs/heatloads_fill_%d.csv'%filln, verbose=False))
 
 dict_beam = fill_dict
 dict_fbct = fill_dict
@@ -113,9 +116,11 @@ for beam_n in beams_list:
 
 group_names = dict_hl_groups.keys()
 N_figures = len(group_names)
+figs = []
 sp1 = None
 for ii in xrange(N_figures):
     fig_h = pl.figure(ii, figsize=(12, 10))
+    figs.append(fig_h)
     fig_h.patch.set_facecolor('w')
 
     sptotint = pl.subplot(3,1,1, sharex=sp1)
@@ -208,10 +213,14 @@ for ii in xrange(N_figures):
     sphlcell.set_ylabel('Heat load [W]')
 
     #~ sphlcell.set_xlabel('Time [h]')
-    sphlcell.legend(prop={'size':myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
+    sphlcell.legend(prop={'size':myfontsz}, bbox_to_anchor=(0.95, 1),  loc='upper left')
     sphlcell.grid('on')
 
-    pl.subplots_adjust(right=0.7, wspace=0.30)
+    pl.subplots_adjust(right=0.65, wspace=0.35)
     fig_h.set_size_inches(15., 8.)
+
+if args.savefig:
+    sf.saveall_pdijksta()
+
 
 pl.show()

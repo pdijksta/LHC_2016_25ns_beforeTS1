@@ -23,7 +23,7 @@ args = parser.parse_args()
 year = args.year
 
 # File names
-h5_dir_0 = '/eos/user/l/lhcscrub/timber_data_h5/cryo_heat_load_data/'
+h5_dir_0 = h5_storage.data_dir
 
 # [For all cells, for 3 special cells]
 variable_files = ['./GasFlowHLCalculator/variable_list_complete.txt', './GasFlowHLCalculator/variable_list_special.txt']

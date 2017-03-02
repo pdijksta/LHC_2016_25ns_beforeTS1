@@ -1,5 +1,4 @@
 from __future__ import division
-import sys
 import cPickle as pickle
 import time
 import re
@@ -28,7 +27,6 @@ parser.add_argument('filln', type=int)
 parser.add_argument('-a', help='Point in time where to calculate the heat load', type=float, default=-1.)
 parser.add_argument('-d', help='Plot for all fills in 2015/2016', action='store_true')
 parser.add_argument('-w', help='Histogram bin width', default=20., type=float)
-parser.add_argument('--nore', help='Show recomputed data', action='store_true')
 parser.add_argument('--nolog', help='Do not show logged data', action='store_true')
 parser.add_argument('--hist', help='Show histograms', action='store_true')
 parser.add_argument('--details', help='Show details of input data', action='store_true')
@@ -39,7 +37,6 @@ filln = args.filln
 avg_time_hrs = args.a
 show_dict = args.d
 binwidth = args.w
-recompute = not args.nore
 logged = not args.nolog
 hist = args.hist
 details = args.details
@@ -83,14 +80,12 @@ for cell in cells:
     cell_vars = []
     for var in variable_list:
         if cell in var:
-            cell_vars.append(var)
-    for var in cell_vars:
-        for affix in affix_list:
-            if affix in var:
-                hl_dict_logged[cell][affix] = var
-                break
-        else:
-            hl_dict_logged[cell]['Cell'] = var
+            for affix in affix_list:
+                if affix in var:
+                    hl_dict_logged[cell][affix] = var
+                    break
+            else:
+                hl_dict_logged[cell]['Cell'] = var
 
 if filln < 4857:
     with open('/afs/cern.ch/project/spsecloud/LHC_2015_PhysicsAfterTS2/fills_and_bmodes.pkl') as fid:
@@ -173,27 +168,18 @@ for cell_ctr, cell in enumerate(cells):
         values = heatloads.data[:,row_ctr]
         mean_hl = np.mean(values[mask_mean])
         summed += values
-        if recompute:
-            summed_re += special_hl[cell][affix]
+        summed_re += special_hl[cell][affix]
         color = ms.colorprog(ctr, cell_vars)
         if logged:
-            sp.plot(timestamps, values, label=affix, ls='-', lw=2., color=color)
-            label=None
-        else:
-            label=affix
-        if recompute:
-            sp.plot(special_tt, special_hl[cell][affix], ls='--', lw=2., color=color, label=label)
+            sp.plot(timestamps, values, label=affix+' logged', ls='--', lw=2., color=color)
+        sp.plot(special_tt, special_hl[cell][affix], ls='-', lw=2., color=color, label=affix)
     #sp.axvline(avg_time_hrs, color='black')
     if logged:
-        sp.plot(timestamps, summed, label='Sum of magnets', ls='-', lw=2., color='blue')
-        label = None
-    else:
-        label='Sum of magnets'
-    if recompute:
-        sp.plot(special_tt, summed_re, ls='--', lw=2., color='blue', label=label)
-    sp.plot(qbs_tt, qbs_ob.data[:,cell_index_dict[cell]], label='Cell recalc.', ls='--', lw=2., c='orange')
+        sp.plot(timestamps, summed, ls='--', lw=2., color='blue')
+    sp.plot(special_tt, summed_re, ls='-', lw=2., color='blue', label='Sum of magnets')
+    sp.plot(qbs_tt, qbs_ob.data[:,cell_index_dict[cell]], label='Cell recalc.', ls='-', lw=2., c='orange')
     cell_index = heatloads.variables.index(cell_vars['Cell'])
-    sp.plot(timestamps, heatloads.data[:,cell_index], label='Cell logged', ls='-', lw=2., c='orange')
+    sp.plot(timestamps, heatloads.data[:,cell_index], label='Cell logged', ls='--', lw=2., c='orange')
     sp.set_ylim(-10, None)
     if sp_ctr == 2:
         ms.comb_legend(sp,sp2,bbox_to_anchor=(1.3,1), fontsize=myfontsz)
