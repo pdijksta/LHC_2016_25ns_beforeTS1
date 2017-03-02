@@ -1,4 +1,3 @@
-import sys, os
 import pickle
 import time
 import pylab as pl
@@ -7,29 +6,39 @@ import numpy as np
 import LHCMeasurementTools.TimberManager as tm
 import LHCMeasurementTools.LHC_Energy as Energy
 import LHCMeasurementTools.mystyle as ms
+import LHCMeasurementTools.savefig as sf
 from LHCMeasurementTools.LHC_FBCT import FBCT
 from LHCMeasurementTools.LHC_BCT import BCT
-from LHCMeasurementTools.LHC_BQM import filled_buckets, blength
+from LHCMeasurementTools.LHC_BQM import blength
 import LHCMeasurementTools.LHC_Heatloads as HL
 from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumericVariables
 
-import scipy.io as sio
+import HeatLoadCalculators.impedance_heatload as ihl
+import HeatLoadCalculators.synchrotron_radiation_heatload as srhl
+import HeatLoadCalculators.FillCalculator as fc
+import GasFlowHLCalculator.qbs_fill as qf
 
 flag_bunch_length = True
 flag_average = True
 flag_fbct = False
 plot_model = True # C
 t_zero = None
+use_recalculated = True
+savefig = True
+make_dict = True
+
+if make_dict:
+    ref_int = 1.06e11
 
 #filln_list = [5043, 5045, 5052, 5078]
 filln_list = [5045]
-n_bunches = 2076
+#n_bunches = 2076
 filln_list = [5173]
-n_bunches = 2076
+#n_bunches = 2076
 #filln_list = [5219, 5222, 5223]
 #n_bunches = 2076
 filln_list = [5181]
-n_bunches = 2076
+filln_list = [5416, 5370]
 # filln_list = [5198]
 # n_bunches = 2172
 # filln_list = [5199]
@@ -39,7 +48,7 @@ n_bunches = 2076
 #~ n_bunches = 2041
 
 
-
+fill_arc_hl_dict = {}
 
 
 blacklist = [\
@@ -83,14 +92,19 @@ fig_blen_vs_int = pl.figure(200, figsize=(9, 6))
 fig_blen_vs_int.patch.set_facecolor('w')
 sp_blen_vs_int = pl.subplot(111)
 
+hli_calculator  = ihl.HeatLoadCalculatorImpedanceLHCArc()
+hlsr_calculator  = srhl.HeatLoadCalculatorSynchrotronRadiationLHCArc()
 
 fills_string = ''
 for i_fill, filln in enumerate(filln_list):
-    
+
     fills_string += '_%d'%filln
     fill_dict = {}
     fill_dict.update(tm.parse_timber_file('fill_basic_data_csvs/basic_data_fill_%d.csv'%filln, verbose=False))
-    fill_dict.update(tm.parse_timber_file('fill_heatload_data_csvs/heatloads_fill_%d.csv'%filln, verbose=False))
+    if use_recalculated:
+        fill_dict.update(qf.get_fill_dict(filln))
+    else:
+        fill_dict.update(tm.parse_timber_file('fill_heatload_data_csvs/heatloads_fill_%d.csv'%filln, verbose=False))
     fill_dict.update(tm.parse_timber_file('fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv'%filln, verbose=False))
 
     dict_beam = fill_dict
@@ -101,7 +115,7 @@ for i_fill, filln in enumerate(filln_list):
     colstr[1] = 'b'
     colstr[2] = 'r'
 
-    
+
 
 
 
@@ -124,12 +138,20 @@ for i_fill, filln in enumerate(filln_list):
     fbct_bx = {}
     bct_bx = {}
     blength_bx = {}
+    n_bunches_bx = {}
 
     for beam_n in beams_list:
 
         fbct_bx[beam_n] = FBCT(fill_dict, beam = beam_n)
+        bint = fbct_bx[beam_n].nearest_older_sample(dict_fill_bmodes[filln]['t_start_RAMP'])
+        min_int = 0.1 * np.max(bint)
+        mask_filled = bint > min_int
+        n_bunches_bx[beam_n] = np.sum(mask_filled)
         bct_bx[beam_n] = BCT(fill_dict, beam = beam_n)
         if flag_bunch_length: blength_bx[beam_n] = blength(fill_dict, beam = beam_n)
+
+    print(n_bunches_bx)
+    n_bunches = n_bunches_bx[1]
 
     dict_hl_data =  fill_dict
 
@@ -149,6 +171,7 @@ for i_fill, filln in enumerate(filln_list):
 
 
     sptotint = pl.subplot(3,1,1, sharex=sp1)
+    sptotint.grid(True)
     sp1 = sptotint
     if flag_bunch_length: spavbl = pl.subplot(3,1,3, sharex=sp1)
     sphlcell = pl.subplot(3,1,2, sharex=sp1)
@@ -184,7 +207,13 @@ for i_fill, filln in enumerate(filln_list):
             hl_var_names.remove(varname)
 
     heatloads = SetOfHomogeneousNumericVariables(variable_list=hl_var_names, timber_variables=dict_hl_data)
-    hl_model = SetOfHomogeneousNumericVariables(variable_list=HL.variable_lists_heatloads['MODEL'], timber_variables=fill_dict)
+    if use_recalculated:
+        hl_imped_fill = fc.HeatLoad_calculated_fill(fill_dict, hli_calculator, bct_dict=bct_bx, fbct_dict=fbct_bx, blength_dict=blength_bx)
+        hl_sr_fill = fc.HeatLoad_calculated_fill(fill_dict, hlsr_calculator, bct_dict=bct_bx, fbct_dict=fbct_bx, blength_dict=blength_bx)
+        hl_total_model = (hl_imped_fill.heat_load_calculated_total + hl_sr_fill.heat_load_calculated_total)*53.45
+        hl_model_t_stamps = (hl_imped_fill.t_stamps - hl_imped_fill.t_stamps[0])/3600.
+    else:
+        hl_model = SetOfHomogeneousNumericVariables(variable_list=HL.variable_lists_heatloads['MODEL'], timber_variables=fill_dict)
 
     # CORRECT ARC AVERAGES
     if group_name == 'Arcs' and filln < first_correct_filln:
@@ -197,6 +226,7 @@ for i_fill, filln in enumerate(filln_list):
 
 
     if flag_average: hl_ts_curr, hl_aver_curr  = heatloads.mean()
+    fill_arc_hl_dict[filln] = {}
     for ii, kk in enumerate(heatloads.variable_list):
         colorcurr = ms.colorprog(i_prog=ii, Nplots=len(heatloads.variable_list))
         if t_zero is not None:
@@ -211,36 +241,51 @@ for i_fill, filln in enumerate(filln_list):
             else:
                 label += st + ' '
         label = label[:-1]
-        
+
         sphlcell.plot((heatloads.timber_variables[kk].t_stamps-t_ref)/3600, heatloads.timber_variables[kk].values-offset,
             '-', color=colorcurr, lw=2., label=label)#.split('_QBS')[0])
-        
+
         t_hl = heatloads.timber_variables[kk].t_stamps
         mask_he = t_hl>dict_fill_bmodes[filln]['t_stop_SQUEEZE']
-        print(mask_he, t_hl)
-        subtract = np.interp(t_hl[mask_he], hl_model.timber_variables['LHC.QBS_CALCULATED_ARC.TOTAL'].t_stamps, hl_model.timber_variables['LHC.QBS_CALCULATED_ARC.TOTAL'].values)
-        
-        print(kk)
-        if i_fill == 0:
-            spvsint.plot(bct_bx[beam_n].interp(t_hl[mask_he])/n_bunches, heatloads.timber_variables[kk].values[mask_he]-offset-subtract,
-                '.', color=colorcurr, lw=2., label=label)
+        #print(mask_he, t_hl)
+        if use_recalculated:
+            subtract = np.interp(t_hl[mask_he], hl_model_t_stamps, hl_total_model)
         else:
-            spvsint.plot(bct_bx[beam_n].interp(t_hl[mask_he])/n_bunches, heatloads.timber_variables[kk].values[mask_he]-offset-subtract,
-                '.', color=colorcurr, lw=2.)
-    
+            subtract = np.interp(t_hl[mask_he], hl_model.timber_variables['LHC.QBS_CALCULATED_ARC.TOTAL'].t_stamps, hl_model.timber_variables['LHC.QBS_CALCULATED_ARC.TOTAL'].values)
+
+        #print(kk)
+        if i_fill == 0:
+            sp_vs_int_label = label+' %i' % filln
+            marker = '.'
+        else:
+            sp_vs_int_label = filln
+            marker = 'x'
+        xx = bct_bx[beam_n].interp(t_hl[mask_he])/n_bunches
+        yy = heatloads.timber_variables[kk].values[mask_he]-offset-subtract
+        mask = xx > 0.1e11
+        spvsint.plot(xx[mask], yy[mask], marker, color=colorcurr, lw=2., label=sp_vs_int_label)
+        if make_dict:
+            index = np.argmin(np.abs(xx[mask] - ref_int))
+            fill_arc_hl_dict[filln][kk] = xx[mask][index], yy[mask][index]
+
+
+
     t_bl = blength_bx[beam_n].t_stamps
     mask_bl_he = t_bl>dict_fill_bmodes[filln]['t_stop_SQUEEZE']
-    
+
     sp_blen_vs_int.plot(bct_bx[beam_n].interp(t_bl[mask_bl_he])/n_bunches, blength_bx[beam_n].avblen[mask_bl_he]/1e-9,
             '.', lw=2., label=filln)
 
     if plot_model and group_name == 'Arcs':
         kk = 'LHC.QBS_CALCULATED_ARC.TOTAL'
         label='Imp.+SR'
-        sphlcell.plot((hl_model.timber_variables[kk].t_stamps-t_ref)/3600., hl_model.timber_variables[kk].values,
-            '--', color='grey', lw=2., label=label)
+        if use_recalculated:
+            sphlcell.plot(hl_model_t_stamps, hl_total_model, '--', color='grey', lw=2., label=label)
+        else:
+            sphlcell.plot((hl_model.timber_variables[kk].t_stamps-t_ref)/3600., hl_model.timber_variables[kk].values,
+                '--', color='grey', lw=2., label=label)
 
-    if flag_average: 
+    if flag_average:
         if t_zero is not None:
             offset = np.interp(t_ref+t_zero*3600, hl_ts_curr, hl_aver_curr)
         else:
@@ -253,8 +298,8 @@ for i_fill, filln in enumerate(filln_list):
 sphlcell.legend(prop={'size':myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
 sphlcell.grid('on')
 
-spvsint.set_xlim(0, 1.3e11)
-spvsint.set_ylim(0, 130)
+#spvsint.set_xlim(0, 1.3e11)
+spvsint.set_ylim(0, None)
 spvsint.grid('on')
 spvsint.legend(prop={'size':myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
 spvsint.set_xlabel('Bunch intensity [p+]')
@@ -278,5 +323,17 @@ fig_vs_int.savefig('hl_vs_int_fill%s'%(fills_string), dpi=200)
 #~ fig_blen_vs_int.set_size_inches(15., 8.)
 fig_blen_vs_int.subplots_adjust(right=0.7, wspace=0.30, bottom=.12, top=.87)
 fig_blen_vs_int.savefig('blen_vs_int_fill%s'%(fills_string), dpi=200)
+
+if savefig:
+    sf.saveall_pdijksta()
+
+if make_dict:
+    fill_0 = filln_list[0]
+    for kk in fill_arc_hl_dict[fill_0].keys():
+        hl_0 = fill_arc_hl_dict[fill_0][kk][1]
+        for filln in filln_list[1:]:
+            hl = fill_arc_hl_dict[filln][kk][1]
+            #print(kk[:3], '%.3f' %hl_0, '%.3f' % hl, '%.3f' % (hl/ hl_0))
+            print(r'%s & %.3f & %.3f & %.3f \\\hline' % (kk[:3], hl_0 , hl, (hl/hl_0)))
 
 pl.show()
