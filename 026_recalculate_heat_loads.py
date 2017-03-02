@@ -21,7 +21,7 @@ binwidth = 20
 
 parser = argparse.ArgumentParser()
 parser.add_argument('fill', metavar='FILL', help='LHC fill number', type=int)
-parser.add_argument('--nodp', help='Do not calculate pressure drop.', action='store_true')
+parser.add_argument('--nodp', help='Show recalculated without pressure drop', action='store_true')
 parser.add_argument('--nohist', help='Do not show histograms.', action='store_true')
 parser.add_argument('--pdsave', help='Save plots in pdijksta folder.', action='store_true')
 args = parser.parse_args()
@@ -34,6 +34,10 @@ if not os.path.isfile(h5_file):
     raise ValueError('%s does not exist' % h5_file)
 
 arc_keys_list = HL.variable_lists_heatloads['AVG_ARC']
+quad_keys = filter(lambda s: s.startswith('Q6s_'), HL.variable_lists_heatloads.keys())
+quad_keys_list = []
+for key in quad_keys:
+    quad_keys_list.extend(HL.variable_lists_heatloads[key])
 
 qbs_ob = qf.compute_qbs_fill(filln, use_dP=True)
 qbs_arc_avg = qf.compute_qbs_arc_avg(qbs_ob).data
@@ -49,7 +53,7 @@ avg_time_hrs = (dict_fill_bmodes[filln]['t_start_STABLE'] - dict_fill_bmodes[fil
 fill_dict = {}
 fill_dict.update(tm.parse_timber_file('./fill_basic_data_csvs/basic_data_fill_%d.csv' % filln, verbose=False))
 fill_dict.update(tm.parse_timber_file('./fill_heatload_data_csvs/heatloads_fill_%d.csv' % filln, verbose=False))
-heatloads = SetOfHomogeneousNumericVariables(variable_list=arc_keys_list, timber_variables=fill_dict)
+heatloads = SetOfHomogeneousNumericVariables(variable_list=arc_keys_list+quad_keys_list, timber_variables=fill_dict)
 energy = Energy.energy(fill_dict, beam=1)
 bct_bx = {}
 for beam_n in colstr:
@@ -60,6 +64,7 @@ figs = []
 ms.mystyle_arial()
 title = 'Recalculated arc heat loads %i' % filln
 fig = ms.figure(title, figs)
+#fig.subplots_adjust(left=0.07, right=0.90, wspace=0.36)
 
 # Arc half cell histograms
 lhc_hist_dict = qf.lhc_histograms(qbs_ob, avg_time_hrs, 0.1)
@@ -67,11 +72,11 @@ arc_hist_dict = lhc_hist_dict['arcs']
 arc_hist_total = lhc_hist_dict['total']
 
 # Intensity and Energy
-sptotint = plt.subplot(2, 1, 1)
+sptotint = plt.subplot(2, 2, 1)
 sptotint.set_ylabel('Total intensity [p+]')
 sptotint.grid('on')
 for beam_n in colstr:
-    sptotint.plot((bct_bx[beam_n].t_stamps-t_ref)/3600., bct_bx[beam_n].values, '-', color=colstr[beam_n])
+    sptotint.plot((bct_bx[beam_n].t_stamps-t_ref)/3600., bct_bx[beam_n].values, '-', color=colstr[beam_n], lw=2)
 
 spenergy = sptotint.twinx()
 spenergy.plot((energy.t_stamps-t_ref)/3600., energy.energy/1e3, c='black', lw=2.)  # alpha=0.1)
@@ -80,7 +85,7 @@ spenergy.set_ylim(0, 7)
 
 # Heat loads arcs
 arc_keys_list.sort()
-sphlcell = plt.subplot(2,1,2, sharex=sptotint)
+sphlcell = plt.subplot(2,2,3, sharex=sptotint)
 sphlcell.grid('on')
 sphlcell.set_xlabel('Time [h]')
 sphlcell.set_ylabel('Heat load [W]')
@@ -104,8 +109,44 @@ for arc_ctr, key in enumerate(arc_keys_list):
     sphlcell.plot(tt, qbs_arc_avg[:,arc_ctr],'--', color=color, lw=2., label=label1)
     if no_use_dP:
         sphlcell.plot(tt, qbs_arc_avg_no[:,arc_ctr],'-.', color=color, lw=2., label=label2)
+sphlcell.legend(bbox_to_anchor=(1.3,1))
 
-sphlcell.legend(bbox_to_anchor=(1.1,1))
+
+# Heat load q6
+quad_keys_list.sort()
+sp = plt.subplot(2,2,4, sharex=sptotint)
+sp.grid(True)
+sp.set_xlabel('Time [h]')
+sp.set_ylabel('Heat load [W]')
+fill_dict_recalc = qf.get_fill_dict(filln)
+heatloads_recalc = SetOfHomogeneousNumericVariables(variable_list=quad_keys_list, timber_variables=fill_dict_recalc)
+if no_use_dP:
+    fill_dict_nodp = qf.get_fill_dict(filln, use_dP=False)
+    heatloads_nodp = SetOfHomogeneousNumericVariables(variable_list=quad_keys_list, timber_variables=fill_dict_nodp)
+for ctr, key in enumerate(quad_keys_list):
+    color = ms.colorprog(ctr, len(quad_keys_list)+1)
+    # Logged
+    xx_time = (heatloads.timber_variables[key].t_stamps-t_ref)/3600.
+    yy_heatloads = (heatloads.timber_variables[key].values)
+    xx_time2 = (heatloads_recalc.timber_variables[key].t_stamps-t_ref)/3600.
+    yy_heatloads2 = (heatloads_recalc.timber_variables[key].values)
+    if no_use_dP:
+        xx_time3 = (heatloads_nodp.timber_variables[key].t_stamps-t_ref)/3600.
+        yy_heatloads3 = (heatloads_nodp.timber_variables[key].values)
+
+    label = key[6:10]
+    if ctr == 0:
+        label += ' logged'
+    sp.plot(xx_time, yy_heatloads, '-', lw=2., label=label, color=color)
+    # Recalculated
+    if ctr == 0:
+        label1, label2 = 'with dP', 'without dP'
+    else:
+        label1, label2 = None, None
+    sp.plot(xx_time2, yy_heatloads2,'--', color=color, lw=2., label=label1)
+    if no_use_dP:
+        sp.plot(xx_time3, yy_heatloads3,'-.', color=color, lw=2., label=label2)
+sp.legend(bbox_to_anchor=(1.3,1))
 
 # Histogram for arcs
 if show_hist:
@@ -147,7 +188,6 @@ if show_hist:
     sp_hist.legend(bbox_to_anchor=(1.2,1))
 
 if args.pdsave:
-    print('There are %i figs' % len(figs))
     for fig in figs:
         sf.pdijksta(fig)
         plt.close(fig)
