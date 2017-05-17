@@ -1,6 +1,6 @@
 from __future__ import division
 import re
-import sys
+import argparse
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,8 +8,15 @@ import matplotlib.pyplot as plt
 import hl_dicts.LHC_Heat_load_dict as hld
 import LHCMeasurementTools.LHC_Heatloads as HL
 import LHCMeasurementTools.mystyle as ms
+import LHCMeasurementTools.savefig as sf
 
-import GasFlowHLCalculator.qbs_fill as qf
+from GasFlowHLCalculator.config_qbs import arc_list
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--pdsave', help='Save in pdijksta dir', action='store_true')
+parser.add_argument('--noshow', help='Do not call plt.show', action='store_true')
+parser.add_argument('--nosubtract', help='Do not subtract offsets for bar plots', action='store_true')
+args = parser.parse_args()
 
 arc_length = HL.magnet_length['AVG_ARC']
 moment = 'stable_beams'
@@ -69,7 +76,7 @@ sp = plt.subplot(2,2,3)
 sp.set_title('Intensity over time')
 sp.set_ylabel('Intensity')
 sp.set_xlabel('Time after sb [h]')
-
+sp.grid(True)
 
 tot_int = hld.values_over_time(dict_100ns, 'intensity', 'total')
 
@@ -82,7 +89,7 @@ sp.legend(bbox_to_anchor=(1.2,1))
 
 # For each Arc
 model_hl = hld.values_over_time(dict_100ns, 'heat_load', 'total_model')
-for arc_ctr, arc in enumerate(hld.arc_list):
+for arc_ctr, arc in enumerate(arc_list):
     sp_ctr = arc_ctr % 4 + 1
     if sp_ctr ==1:
         fig = plt.figure()
@@ -95,7 +102,8 @@ for arc_ctr, arc in enumerate(hld.arc_list):
     sp.set_title('Arc %s' % arc)
     sp.set_ylabel('Heat load per half cell [W]')
     sp.set_xlabel('Time after sb [h]')
-    hl = hld.values_over_time(dict_100ns, 'heat_load', arc)
+    sp.grid(True)
+    hl = hld.values_over_time(dict_100ns, 'heat_load', 'arc_averages', arc)
     for ctr, (hl_arr, fill, modelz) in enumerate(zip(hl, fills, model_hl)):
         color = ms.colorprog(ctr, fills)
         sp.plot(hl_arr[0],hl_arr[1],'.-', label=fill, color=color)
@@ -120,9 +128,10 @@ for ctr, (fill, modelz) in enumerate(zip(fills, model_hl)):
     sp.set_title('Fill %i' % fill)
     sp.set_ylabel('Heat load per half cell [W]')
     sp.set_xlabel('Time after sb [h]')
-    for arc_ctr, arc in enumerate(hld.arc_list):
-        hl_arr = hld.values_over_time(dict_100ns, 'heat_load', arc)[ctr]
-        color = ms.colorprog(arc_ctr, hld.arc_list)
+    sp.grid(True)
+    for arc_ctr, arc in enumerate(arc_list):
+        hl_arr = hld.values_over_time(dict_100ns, 'heat_load', 'arc_averages', arc)[ctr]
+        color = ms.colorprog(arc_ctr, arc_list)
         sp.plot(hl_arr[0],hl_arr[1],'.-', label=arc, color=color)
         if ctr == 0:
             label = 'Subtracted model hl'
@@ -135,31 +144,46 @@ for ctr, (fill, modelz) in enumerate(zip(fills, model_hl)):
 # Cell by cell heat load
 index = -1
 filln = fills[index]
-qbs_ob = qf.compute_qbs_fill(filln)
-qbs_avg_arc = qf.compute_qbs_arc_avg(qbs_ob).data
-avg_time = dict_100ns[moment]['t_stamps'][index]
-mask_mean = np.abs(qbs_ob.timestamps - avg_time) < 360
-qbs_avg_arc = np.mean(qbs_avg_arc[mask_mean,:], axis=0)
 
-lhc_histograms = qf.lhc_histograms(qbs_ob, avg_time,0.1*3600,False)
-for arc_ctr, arc in enumerate(qf.arc_list):
-    sp_ctr = arc_ctr % 4 + 1
-    data = lhc_histograms['arcs'][arc]
+for arc_ctr, arc in enumerate(arc_list):
+    arc_str = 'Arc_'+arc[-2:]
+    sp_ctr = arc_ctr % 2 + 1
+    data_dict = dict_100ns[moment]['heat_load']['all_cells']
     if sp_ctr == 1:
-        fig = plt.figure()
-        title = 'Fill %i' % filln
+        fig = plt.figure(figsize=(12,8))
+        title = 'Fill %i at %s.' % (filln, moment)
+        if args.nosubtract:
+            title += ' Offsets not subtracted'
+        else:
+            title += ' Offsets subtracted'
         fig.canvas.set_window_title(title)
         fig.patch.set_facecolor('w')
-        fig.subplots_adjust(left=.06, right=.84, top=.93, hspace=.38, wspace=.42)
-        plt.suptitle(title, fontsize=20)
-    sp = plt.subplot(4,1,sp_ctr)
+        fig.subplots_adjust(left=.1, right=.75, top=.87, hspace=.45, wspace=.45)
+        plt.suptitle(title, fontsize=18)
+    sp = plt.subplot(2,1,sp_ctr)
     sp.set_ylabel('Heat load [W/hc]')
     sp.set_xlabel('Cell')
     sp.set_title(arc)
-    for ctr, hl in enumerate(data):
-        sp.bar(ctr, hl)
-    sp.axhline(qbs_avg_arc[arc_ctr])
-    sp.axhline(dict_100ns[moment]['heat_load'][arc][index], color='green')
+    sp.grid(True)
+    for ctr, cell in enumerate(hld.arc_cells_dict[arc_str]):
+        if args.nosubtract:
+            yy = data_dict[cell][index] + dict_100ns['hl_subtracted_offset']['all_cells'][cell][index]
+        else:
+            yy = data_dict[cell][index]
+        sp.bar(ctr, yy)
+    sp.axhline(dict_100ns[moment]['heat_load']['imp']['total'][index]*53.45, color='orange', label='Impedance')
+    sp.axhline(dict_100ns[moment]['heat_load']['total_model'][index]*53.45, color='green', label='Impedance + SR')
+    if args.nosubtract:
+        arc_average = dict_100ns[moment]['heat_load']['arc_averages'][arc][index]+dict_100ns['hl_subtracted_offset']['arc_averages'][arc][index]
+    else:
+        arc_average = dict_100ns[moment]['heat_load']['arc_averages'][arc][index]
+        sp.axhline(dict_100ns['hl_subtracted_offset']['arc_averages'][arc][index], color='red', label='Average subtracted offset')
+    sp.axhline(arc_average, color='blue', label='Arc Average')
 
+    sp.legend(bbox_to_anchor=(1.4,1))
 
-plt.show()
+if args.pdsave:
+    sf.saveall_pdijksta()
+
+if not args.noshow:
+    plt.show()
