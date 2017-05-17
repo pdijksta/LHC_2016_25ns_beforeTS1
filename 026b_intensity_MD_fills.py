@@ -45,7 +45,7 @@ for fill_ctr, filln in enumerate(fill_list):
     if compare_to_logged:
         for arc_ctr, arc in enumerate(arc_list):
             sector = 'S' + arc[-2:]
-            hl_logged[fill_ctr, arc_ctr] = hl_dict[moment]['heat_load'][sector][index]
+            hl_logged[fill_ctr, arc_ctr] = hl_dict[moment]['heat_load']['arc_averages'][sector][index]
 hl_qbs = np.array(hl_qbs)
 mask_arc = np.array(config_qbs.Type_list) == 'ARC'
 hl_qbs = hl_qbs[:,mask_arc]
@@ -99,6 +99,7 @@ sp = plt.subplot(2,2,2)
 sp.set_title('Special cell dipoles')
 sp.set_ylabel('Total heat load [W]')
 sp.set_xlabel('Bunch intensity [p/bunch]')
+sp.grid(True)
 xx_dict = {}
 for filln in fill_list:
     qbs_ob = qf.special_qbs_fill(filln)

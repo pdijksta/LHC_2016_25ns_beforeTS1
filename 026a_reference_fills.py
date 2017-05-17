@@ -98,6 +98,7 @@ for arc_ctr, arc in enumerate(arc_list):
     sp = plt.subplot(n_sps,1,sp_ctr)
     sp.set_title('Arc %s' % arc)
     sp.set_ylabel('Heat load [W]')
+    sp.grid(True)
 
     first, last = arc_index[arc_ctr,:]
     cell_list = []
