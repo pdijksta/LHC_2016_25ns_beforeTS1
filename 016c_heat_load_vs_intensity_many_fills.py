@@ -13,7 +13,7 @@ import LHCMeasurementTools.LHC_Heatloads as HL
 from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumericVariables
 
 import HeatLoadCalculators.impedance_heatload as ihl
-import HeatLoadCalculators.synchrotron_radiation_heatload as srhl 
+import HeatLoadCalculators.synchrotron_radiation_heatload as srhl
 import HeatLoadCalculators.FillCalculator as fc
 
 import GasFlowHLCalculator.qbs_fill as qf
@@ -36,6 +36,7 @@ filln_list = [5026, 5219, 5433]
 savefig = False
 verbose_parse = False
 use_recalculated = True
+show_offset = False
 
 first_correct_filln = 4474
 output_folder = 'plots'
@@ -70,10 +71,10 @@ for sector in HL.sector_list():
 
 fills_string = ''
 for i_fill, filln in enumerate(filln_list):
-    
+
     fills_string += '_%d'%filln
     colorfill = ms.colorprog(i_prog=i_fill, Nplots=len(filln_list))
-    
+
     fill_dict = {}
     fill_dict.update(tm.parse_timber_file('fill_basic_data_csvs/basic_data_fill_%d.csv'%filln, verbose=verbose_parse))
     fill_dict.update(tm.parse_timber_file('fill_heatload_data_csvs/heatloads_fill_%d.csv'%filln, verbose=verbose_parse))
@@ -136,12 +137,12 @@ for i_fill, filln in enumerate(filln_list):
         bct_total = bct_bx[1].interp(hl_t_stamps)+bct_bx[2].interp(hl_t_stamps)
 
         mask_offset = np.logical_and(t_ref + 300 < hl_t_stamps, hl_t_stamps < t_ref + 3600)
-        mask_offset = np.logical_and(mask_offset, bct_total < 1e-12)
+        mask_offset = np.logical_and(mask_offset, bct_total < 3e12)
         if sum(mask_offset) > 0:
             offset = np.mean(hl_values[mask_offset])
             # print(kk, offset)
         else:
-            print('No offset for %s' % kk)
+            print('Fill %i: No offset for %s' % (i_fill, kk))
             offset = 0.
 
         mask_he = hl_t_stamps > dict_fill_bmodes[filln]['t_stop_SQUEEZE']
@@ -162,21 +163,23 @@ for i_fill, filln in enumerate(filln_list):
         fig = pl.figure(sector)
         fig.canvas.set_window_title('Sector %i' % sector)
         sp = pl.subplot(111)
-        sp.set_xlim(0.6e11, 1.3e11)
+        sp.set_xlim(0.6e11, 1.1e11)
         sp.set_ylim(-5, 130)
         sp.grid('on')
         sp.set_xlabel('Bunch intensity [p+]')
         sp.set_ylabel('Heat load from e-cloud [W/hc]')
-        
+
         fig.subplots_adjust(right=0.7, wspace=0.30, bottom=.12, top=.87)
         fig.suptitle('Sector %i' % sector)
 
         sp.plot(binten_hl[mask_calc_avail], ecloud_hl[mask_calc_avail], '.', color=colorfill, lw=2., label=filln)
+        sp.plot(binten_hl[mask_calc_avail], (subtract_imped+subtract_SR)[mask_calc_avail], label='Imp.+SR', ls='--', color=colorfill)
         if i_fill == len(filln_list)-1:
             sp_label = 'Offset'
         else:
             sp_label = None
-        sp.axhline(offset, color=colorfill, ls='--', lw=2., label=sp_label)
+        if show_offset:
+            sp.axhline(offset, color=colorfill, ls='--', lw=2., label=sp_label)
         sp.legend(prop={'size':myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
         if savefig:
             fig.savefig(output_folder+'/hl_vs_int_S%d_fill%s' % (sector, fills_string), dpi=200)
