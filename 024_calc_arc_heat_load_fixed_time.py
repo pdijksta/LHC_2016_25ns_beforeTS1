@@ -3,8 +3,9 @@
 # Comparing these to the heatloads from PyEcloud simulations will then allow for
 #   an estimation of the SEY parameter.
 # It has been extended to also list the heat load on the Q6 quadrupoles.
+# It uses the recalculated heat loads from the GasFlow... module.
 
-import sys
+from __future__ import division
 import os
 import cPickle  # it is recommended to use cPickle over pickle
 import time
@@ -14,15 +15,16 @@ import argparse as arg
 
 import LHCMeasurementTools.TimberManager as tm
 import LHCMeasurementTools.LHC_Energy as Energy
-import LHCMeasurementTools.mystyle as ms
 from LHCMeasurementTools.LHC_BCT import BCT
 import LHCMeasurementTools.LHC_Heatloads as HL
 from LHCMeasurementTools.SetOfHomogeneousVariables import SetOfHomogeneousNumericVariables
 import LHCMeasurementTools.mystyle as ms
+import LHCMeasurementTools.savefig as sf
 
 import HeatLoadCalculators.impedance_heatload as ihl
 import HeatLoadCalculators.synchrotron_radiation_heatload as srhl
 import HeatLoadCalculators.FillCalculator as fc
+import GasFlowHLCalculator.qbs_fill as qf
 
 # CONFIG
 default_avg_period = 0.1  # in hours
@@ -31,9 +33,11 @@ default_offset_period_end = 0.35
 
 first_correct_filln = 4474
 beam_colors = {1: 'b', 2: 'r'}
-myfontsz = 16
+myfontsz = 14
 ms.mystyle_arial(fontsz=myfontsz, dist_tick_lab=8)
 pickle_name = 'heatload_arcs.pkl'
+
+#Plot
 
 # PARSE ARGS
 parser = arg.ArgumentParser(description='Calculate the heat loads on all arcs at a specified time for a given fill.' +
@@ -47,7 +51,13 @@ parser.add_argument('-f', help='Overwrite heat loads at the pickle if the entry 
 parser.add_argument('-n', help='No plot will be shown.', action='store_false')
 parser.add_argument('-o', metavar=('T1', 'T2'), nargs=2, type=float, default=[default_offset_period_begin, default_offset_period_end], help='The time in hours this program uses to calculate an offset.\nDefault: %.2f - %.2f' % (default_offset_period_begin, default_offset_period_end))
 parser.add_argument('-c', help='Show contribution from different devices', action='store_true')
+parser.add_argument('--sps-c-2', help='2 subplots per figure for contributions', action='store_true')
 parser.add_argument('-r', help='Remove the offset in plots', action='store_true')
+parser.add_argument('--logged', help='Use logged instead of recalculated data', action = 'store_true')
+parser.add_argument('--savefig', help='Save plots in pdijksta dir.', action = 'store_true')
+parser.add_argument('--noshow', help='Make plots but do not call plt.show', action = 'store_true')
+parser.add_argument('--noquad', help='Do not show quadrupoles.', action = 'store_true')
+parser.add_argument('--beam-events', help='Show when is begin of squeeze etc.', action = 'store_true')
 
 args = parser.parse_args()
 avg_period = args.a
@@ -60,7 +70,7 @@ show_heatload_contributions = args.c
 remove_offset = args.r
 [offset_time_hrs_begin, offset_time_hrs_end] = args.o
 
-time_of_interest_arr = [float(time_of_interest_str) for time_of_interest_str in time_of_interest_str_arr]
+time_of_interest_arr = map(float, time_of_interest_str_arr)
 
 main_key_dict = {}
 for time_of_interest in time_of_interest_arr:
@@ -95,8 +105,11 @@ with open('fills_and_bmodes.pkl', 'rb') as fid:
 
 fill_dict = {}
 fill_dict.update(tm.parse_timber_file('./fill_basic_data_csvs/basic_data_fill_%d.csv' % filln, verbose=False))
-fill_dict.update(tm.parse_timber_file('./fill_heatload_data_csvs/heatloads_fill_%d.csv' % filln, verbose=False))
 fill_dict.update(tm.parse_timber_file('./fill_bunchbybunch_data_csvs/bunchbybunch_data_fill_%d.csv' % filln, verbose=False))
+if args.logged:
+    fill_dict.update(tm.parse_timber_file('./fill_heatload_data_csvs/heatloads_fill_%d.csv' % filln, verbose=False))
+else:
+    fill_dict.update(qf.get_fill_dict(filln))
 
 bct_bx = {}
 for beam_n in beam_colors:
@@ -235,30 +248,41 @@ if store_pickle:
         cPickle.dump(heatload_dict, hl_dict_file, protocol=-1)
 
 # PLOTS
-ms.mystyle(20)
-
 if show_plot:
     plt.close('all')
-    fig = plt.figure()
 
-    fig.patch.set_facecolor('w')
-    fig.canvas.set_window_title('LHC Arcs and Q6')
-    fig.set_size_inches(15., 8.)
-
-    plt.suptitle(' Fill. %d started on %s\nLHC Arcs and Q6' % (filln, tref_string), fontsize=25)
-    plt.subplots_adjust(right=0.7, wspace=0.30)
+    title = ' Fill. %d started on %s\nLHC Arcs and Q6' % (filln, tref_string)
+    fig = ms.figure('LHC Arcs and Q6')
+    plt.suptitle(title)
+    fig.subplots_adjust(right=0.7, wspace=0.4, hspace=0.4)
 
     # Intensity and Energy
     sptotint = plt.subplot(3, 1, 1)
     sptotint.set_ylabel('Total intensity [p+]')
     sptotint.grid('on')
     for beam_n in beam_colors:
-        sptotint.plot((bct_bx[beam_n].t_stamps-t_ref)/3600., bct_bx[beam_n].values, '-', color=beam_colors[beam_n])
+        sptotint.plot((bct_bx[beam_n].t_stamps-t_ref)/3600., bct_bx[beam_n].values, '-', color=beam_colors[beam_n], label='Intensity B%i' % beam_n)
 
     spenergy = sptotint.twinx()
-    spenergy.plot((energy.t_stamps-t_ref)/3600., energy.energy/1e3, c='black', lw=2.)  # alpha=0.1)
+    spenergy.plot((energy.t_stamps-t_ref)/3600., energy.energy/1e3, c='black', lw=2., label='Energy')  # alpha=0.1)
     spenergy.set_ylabel('Energy [TeV]')
     spenergy.set_ylim(0, 7)
+
+    if args.beam_events:
+            keys = [('t_start_INJPHYS', 'Injection'),
+                    ('t_start_RAMP',    'Ramp'),
+                    ('t_start_FLATTOP', 'Flat top'),
+                    ('t_start_SQUEEZE', 'Squeeze'),
+                    ('t_start_ADJUST',  'Adjust'),
+                    ('t_start_STABLE',  'Stable beams')
+                    ]
+            for ctr, (key, label) in enumerate(keys):
+                color = ms.colorprog(ctr, keys)
+                tt = (dict_fill_bmodes[filln][key] - t_ref)/3600.
+                sptotint.axvline(tt, ls='--', color=color, label=label)
+
+
+    ms.comb_legend(sptotint, spenergy, bbox_to_anchor=(1.1, 1.4),  loc='upper left')
 
     # Cell heat loads
     sphlcell = plt.subplot(3, 1, 2, sharex=sptotint)
@@ -266,10 +290,15 @@ if show_plot:
     sphlcell.grid('on')
 
     # Quad heat loads
-    sphlquad = plt.subplot(3, 1, 3, sharex=sptotint)
-    sphlquad.grid('on')
-    sphlquad.set_ylabel('Heat load [W/m]')
-    sphlquad.set_xlabel('Time [h]')
+    if args.noquad:
+        quad_keys_list = []
+        sphlquad=None
+        sphlcell.set_xlabel('Time [h]')
+    else:
+        sphlquad = plt.subplot(3, 1, 3, sharex=sptotint)
+        sphlquad.grid('on')
+        sphlquad.set_ylabel('Heat load [W/m]')
+        sphlquad.set_xlabel('Time [h]')
 
     # Heat loads arcs and quads
     arc_ctr, quad_ctr = 0, 0
@@ -292,27 +321,31 @@ if show_plot:
 
     # Heat loads model
     sphlcell.plot(imp_data[:,0], imp_data[:,1]*len_cell, label=imp_label)
-    sphlquad.plot(imp_data[:,0], imp_data[:,1], label=imp_label)
-    sphlcell.plot(sr_data[:,0], sr_data[:,1]*len_cell, label=sr_label)
     sphlcell.plot(imp_data[:,0], (imp_data[:,1]+sr_data[:,1])*len_cell, label='Imp+SR')
-
-
-    sphlquad.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
-    sphlcell.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
+    sphlcell.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1.2),  loc='upper left')
+    if not args.noquad:
+        sphlquad.plot(imp_data[:,0], imp_data[:,1], label=imp_label)
+        sphlquad.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
 
     # Vertical line to indicate time_of_interest
-    for sp in [sphlcell, spenergy, sphlquad]:
-        sp.axvline(offset_time_hrs_begin, color='black')
-        sp.axvline(offset_time_hrs_end, color='black')
-        for time_of_interest in time_of_interest_arr:
-            if time_of_interest == 0:
-                continue
-            sp.axvline(time_of_interest, color='black')
-            for xx in [time_of_interest - avg_period, time_of_interest + avg_period]:
-                sp.axvline(xx, ls='--', color='black')
+    if time_of_interest_arr != [0.]:
+        for sp in [sphlcell, spenergy, sphlquad]:
+            if args.noquad and sp is sphlquad: continue
+            sp.axvline(offset_time_hrs_begin, color='black')
+            sp.axvline(offset_time_hrs_end, color='black')
+            for time_of_interest in time_of_interest_arr:
+                if time_of_interest == 0:
+                    continue
+                sp.axvline(time_of_interest, color='black')
+                for xx in [time_of_interest - avg_period, time_of_interest + avg_period]:
+                    sp.axvline(xx, ls='--', color='black')
 
 
 if show_heatload_contributions:
+    if args.sps_c_2:
+        n_sps = 2
+    else:
+        n_sps = 4
 
     # Time stamps of first quad
     first_key = quad_keys_list[0]
@@ -340,18 +373,15 @@ if show_heatload_contributions:
 
     avg_quad_hl = summed_hl/summed_len * len_quad_cell
 
-    # Plots
+    # Plots heat loads contribution
     for key_ctr, key in enumerate(arc_keys_list):
-        sp_ctr = key_ctr % 4 + 1
+        sp_ctr = key_ctr % n_sps + 1
 
         if sp_ctr == 1:
             sp = None
-            fig = plt.figure()
             title = 'Detailed arc heat loads for fill %i' % filln
-            fig.canvas.set_window_title(title)
-            plt.suptitle(title, fontsize=25)
-            fig.patch.set_facecolor('w')
-            plt.subplots_adjust(right=0.85, wspace=0.15)
+            fig = ms.figure(title)
+            fig.subplots_adjust(right=0.75, wspace=0.45, hspace=0.4)
 
         sp = plt.subplot(2,2,sp_ctr, sharex=sp)
         sp.set_xlabel('Time [h]')
@@ -393,8 +423,10 @@ if show_heatload_contributions:
         sp.fill_between(xx_time, bottom_rescaled, yy_all, label='Dipoles and drifts', alpha=0.5, color='green')
 
         if sp_ctr == 2:
-            sp.legend(prop={'size': myfontsz}, bbox_to_anchor=(1.1, 1),  loc='upper left')
+            ms.comb_legend(sp, sp2, prop={'size': myfontsz}, bbox_to_anchor=(1.15, 1),  loc='upper left')
 
+if args.savefig:
+    sf.saveall_pdijksta()
 
-if show_plot:
+if show_plot or args.savefig and not args.noshow:
     plt.show()
